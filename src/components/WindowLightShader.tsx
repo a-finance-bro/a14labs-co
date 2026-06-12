@@ -299,17 +299,19 @@ const FRAG = /* glsl */ `
     // ----- string lights: three deliberate strands, gently swaying -----
     {
       float lights = 0.0;
+      // Anchors sit WELL past the window borders so the wire's cut ends
+      // stay hidden even at full sway — no floating tips.
       // Strand 1 (5 bulbs) — left border ~34% down → pin on the top border.
       lights = max(lights, lightStrand(
-        puvObj, vec2(-0.015, 0.66), vec2(0.45, 1.005),
+        puvObj, vec2(-0.07, 0.63), vec2(0.47, 1.04),
         0.105, uTime, 0.0, pxAspect, 5));
       // Strand 2 (4 bulbs) — swag along the top border, x 0.33 → 0.63.
       lights = max(lights, lightStrand(
-        puvObj, vec2(0.33, 1.01), vec2(0.63, 1.01),
+        puvObj, vec2(0.33, 1.03), vec2(0.63, 1.03),
         0.10, uTime, 2.1, pxAspect, 4));
       // Strand 3 (3 bulbs) — drapes the top-right corner.
       lights = max(lights, lightStrand(
-        puvObj, vec2(0.70, 1.005), vec2(1.015, 0.76),
+        puvObj, vec2(0.68, 1.04), vec2(1.07, 0.73),
         0.07, uTime, 4.3, pxAspect, 3));
 
       // Furthest from the wall → most diffuse, least dense.
