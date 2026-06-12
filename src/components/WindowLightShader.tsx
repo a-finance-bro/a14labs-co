@@ -408,7 +408,8 @@ const FRAG = /* glsl */ `
 
     // ===== DUST MOTES in the light =====
     {
-      vec2 muv = uv * vec2(70.0, 40.0) + vec2(uTime * 0.55, -uTime * 0.21);
+      vec2 muv = uv * vec2(70.0, 40.0)
+               + vec2(mod(uTime * 0.55, 1024.0), -mod(uTime * 0.21, 1024.0));
       float cell = hash(floor(muv));
       vec2 fpos = fract(muv) - 0.5;
       float mote = smoothstep(0.10, 0.02, length(fpos)) * step(0.975, cell);
@@ -416,7 +417,11 @@ const FRAG = /* glsl */ `
     }
 
     // ===== FILM GRAIN + SOFT VIGNETTE =====
-    float grain = (hash(uv * uRes.xy + uTime * 137.0) - 0.5) * 0.034;
+    // Keep hash inputs small — unbounded uTime * 137 exceeds float32
+    // precision after a few minutes and the noise degenerates into fast
+    // vertical bands.
+    vec2 gp = mod(uv * uRes.xy + mod(uTime, 4.0) * 137.0, 512.0);
+    float grain = (hash(gp) - 0.5) * 0.034;
     col += grain;
     float vig = length((uv - 0.5) * vec2(1.02, 1.10));
     col *= 1.0 - smoothstep(0.62, 1.25, vig) * 0.34;
