@@ -1,8 +1,7 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
-import { useRef } from "react";
 import { A14Lockup } from "@/components/A14Mark";
 import { RevealOnView, RevealWords } from "@/components/Reveal";
 import { MagneticLink } from "@/components/MagneticLink";
@@ -12,6 +11,7 @@ export default function Home() {
     <main className="min-h-screen">
       <Nav />
       <Hero />
+      <Mission />
       <Products />
       <Team />
       <Notes />
@@ -54,76 +54,63 @@ function Nav() {
 }
 
 function Hero() {
-  const ref = useRef<HTMLElement | null>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start start", "end start"],
-  });
-  const titleY = useTransform(scrollYProgress, [0, 1], ["0%", "-25%"]);
+  // All hero content lives in the shader as cast shadows — the HTML layer
+  // only contributes the scroll cue. The section is 200svh tall with a
+  // sticky inner stage: scrolling the first viewport-height draws the
+  // blinds down over the window light, then the page continues.
+  return (
+    <section id="studio" className="relative h-[200svh] w-full">
+      <div className="sticky top-0 flex h-[100svh] w-full flex-col justify-end overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.2, duration: 0.6 }}
+          className="relative z-10 mx-auto mb-6 font-mono text-[10px] uppercase tracking-[0.4em] text-foreground/60"
+        >
+          <motion.span
+            animate={{ y: [0, 6, 0], opacity: [0.6, 1, 0.6] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+            className="inline-block"
+          >
+            Scroll ↓
+          </motion.span>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
 
+function Mission() {
   return (
     <section
-      id="studio"
-      ref={ref}
-      className="relative flex min-h-[100svh] w-full flex-col justify-between overflow-hidden px-6 pb-12 pt-32 md:px-10 md:pb-16 md:pt-40"
+      id="mission"
+      className="relative z-10 px-6 py-24 md:px-10 md:py-32"
     >
-
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 mx-auto w-full max-w-[1400px]"
-      >
-        <p className="font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/70">
-          <span className="text-caramel">A14 Labs</span>
-          <span className="ml-4 text-foreground/60">AI-native product studio</span>
-        </p>
-      </motion.div>
-
-      <motion.div
-        style={{ y: titleY }}
-        className="relative z-10 mx-auto w-full max-w-[1400px]"
-      >
-        <h1 className="font-display text-[clamp(56px,11vw,184px)] font-semibold leading-[0.92] tracking-[-0.04em]">
-          <RevealWords text="We build" baseDelay={0.35} />
-          <br />
-          <RevealWords text="the tools" baseDelay={0.55} />
+      <div className="mx-auto w-full max-w-[1400px]">
+        <h1 className="txt-shadow font-display text-[clamp(44px,7.5vw,120px)] font-semibold leading-[0.94] tracking-[-0.04em]">
+          <RevealWords text="We build the tools" />
           <br />
           <span className="font-italic italic font-normal text-crema">
-            <RevealWords text="we wished existed." baseDelay={0.8} italic />
+            <RevealWords text="we wished existed." baseDelay={0.15} italic />
           </span>
         </h1>
 
         <RevealOnView
-          delay={1.1}
-          className="mt-10 grid grid-cols-12 gap-4 border-t border-hairline pt-8 md:gap-8 md:pt-10"
+          delay={0.25}
+          duration={0.7}
+          className="mt-10 grid grid-cols-12 gap-4 border-t border-hairline pt-6 md:gap-8 md:pt-8"
         >
           <p className="col-span-12 font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/60 md:col-span-3">
             Mission
           </p>
-          <p className="col-span-12 max-w-2xl text-[15px] leading-[1.65] text-foreground/85 md:col-span-9 md:text-[16px]">
+          <p className="txt-shadow-soft col-span-12 max-w-2xl text-[15px] leading-[1.6] text-foreground/85 md:col-span-9 md:text-[16px]">
             A14 Labs is an AI-native product studio. We design, build, and
             operate AI-native software end-to-end — mostly in finance,
             education, and personal infrastructure. Bootstrapped. Long-term
             oriented. No theatre — just shipping things people use.
           </p>
         </RevealOnView>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.8, duration: 0.6 }}
-        className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 font-mono text-[10px] uppercase tracking-[0.4em] text-foreground/60"
-      >
-        <motion.span
-          animate={{ y: [0, 6, 0], opacity: [0.6, 1, 0.6] }}
-          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-          className="inline-block"
-        >
-          Scroll ↓
-        </motion.span>
-      </motion.div>
+      </div>
     </section>
   );
 }
@@ -157,10 +144,10 @@ function Products() {
     >
       <div className="mx-auto max-w-[1400px]">
         <RevealOnView className="mb-12 flex items-end justify-between gap-6 border-b border-hairline pb-6">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/60">
+          <h2 className="txt-shadow-soft font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/60">
             Products
           </h2>
-          <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/60">
+          <span className="txt-shadow-soft font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/60">
             2 brands live · more soon
           </span>
         </RevealOnView>
@@ -172,7 +159,7 @@ function Products() {
         </div>
 
         <RevealOnView delay={0.2} className="mt-8">
-          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/60">
+          <p className="txt-shadow-soft font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/60">
             Next product → in build.
           </p>
         </RevealOnView>
@@ -285,10 +272,10 @@ function Team() {
     >
       <div className="mx-auto max-w-[1400px]">
         <RevealOnView className="mb-12 flex items-end justify-between gap-6 border-b border-hairline pb-6">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/60">
+          <h2 className="txt-shadow-soft font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/60">
             Meet the Team
           </h2>
-          <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/60">
+          <span className="txt-shadow-soft font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/60">
             2 founders · co-led
           </span>
         </RevealOnView>
@@ -361,13 +348,13 @@ function Notes() {
     >
       <div className="mx-auto grid max-w-[1400px] grid-cols-12 gap-8">
         <RevealOnView delay={0} className="col-span-12 md:col-span-4">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/60">
+          <h2 className="txt-shadow-soft font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/60">
             Notes
           </h2>
         </RevealOnView>
         <div className="col-span-12 md:col-span-8">
           <RevealOnView delay={0.1}>
-            <p className="max-w-2xl font-display text-[clamp(24px,2.6vw,38px)] font-medium leading-[1.2] tracking-[-0.015em]">
+            <p className="txt-shadow max-w-2xl font-display text-[clamp(24px,2.6vw,38px)] font-medium leading-[1.2] tracking-[-0.015em]">
               Reach out at{" "}
               <MagneticLink
                 href="mailto:hello@a14labs.co"
