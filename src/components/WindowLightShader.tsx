@@ -354,12 +354,14 @@ const FRAG = /* glsl */ `
     // Coffee mug + steam (left).
     {
       vec2 mp = (puvObj - vec2(0.215, 0.038)) * vec2(pxAspect, 1.0);
-      float body = sdRoundedBox(mp, vec2(0.030, 0.040), 0.012);
+      // Bottom edge stretched below the light line — a real object sits
+      // ON the desk, so no light can pass underneath it.
+      float body = sdRoundedBox(mp - vec2(0.0, -0.025), vec2(0.030, 0.065), 0.012);
       float hOuter = sdCircle(mp - vec2(0.042, 0.004), 0.021);
       float hInner = sdCircle(mp - vec2(0.042, 0.004), 0.012);
       float handle = max(hOuter, -hInner);
       float sil = min(body, handle);
-      float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
+      float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
       occ = max(occ, silMask * 0.88);
       occ = max(occ, groundContact(mp + vec2(0.0, 0.038), 0.055) * 0.30);
       rimGlow += (1.0 - smoothstep(0.001, 0.008, abs(sil - 0.004)))
@@ -381,7 +383,7 @@ const FRAG = /* glsl */ `
     // Potted plant — curved leaves bowing outward, far right.
     {
       vec2 pp = (puvObj - vec2(0.90, 0.0)) * vec2(pxAspect, 1.0);
-      float pot = sdRoundedBox(pp - vec2(0.0, 0.032), vec2(0.027, 0.032), 0.008);
+      float pot = sdRoundedBox(pp - vec2(0.0, 0.009), vec2(0.027, 0.055), 0.008);
       vec2 rim = vec2(0.0, 0.062);
       float swayL = sin(uTime * 0.5) * 0.004;
       // Each leaf: base → bowed mid → drooping tip (sdBentLeaf).
@@ -392,7 +394,7 @@ const FRAG = /* glsl */ `
       float l5 = sdBentLeaf(pp, rim, vec2( 0.042, 0.100), vec2( 0.080 + swayL, 0.112), 0.0100);
       float leaves = min(min(min(l1, l2), l3), min(l4, l5));
       float sil = min(pot, leaves);
-      float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
+      float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
       occ = max(occ, silMask * 0.86);
       occ = max(occ, groundContact(pp, 0.050) * 0.30);
       rimGlow += (1.0 - smoothstep(0.001, 0.008, abs(sil - 0.004)))
@@ -404,12 +406,12 @@ const FRAG = /* glsl */ `
     {
       vec2 lp = (puvObj - vec2(0.46, 0.0)) * vec2(pxAspect, 1.0);
       // Keyboard deck — a slim sliver, no separate contact shadow.
-      float lapBase = sdRoundedBox(lp - vec2(0.0, 0.0045), vec2(0.128, 0.0045), 0.003);
+      float lapBase = sdRoundedBox(lp - vec2(0.0, -0.021), vec2(0.128, 0.030), 0.003);
       vec2 sp2 = lp - vec2(0.0, 0.080);
       sp2.x += sp2.y * 0.03;   // barely leaning
       float lid = sdRoundedBox(sp2, vec2(0.112, 0.071), 0.010);
       float sil = min(lapBase, lid);
-      float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
+      float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
       occ = max(occ, silMask * 0.88);
       rimGlow += (1.0 - smoothstep(0.001, 0.008, abs(sil - 0.004)))
                * smoothstep(0.07, 0.14, lp.y) * 0.50;
@@ -418,11 +420,11 @@ const FRAG = /* glsl */ `
     // Digital desk clock — slab with two buttons on top.
     {
       vec2 kp = (puvObj - vec2(0.60, 0.0)) * vec2(pxAspect, 1.0);
-      float bodyC = sdRoundedBox(kp - vec2(0.0, 0.023), vec2(0.040, 0.023), 0.007);
+      float bodyC = sdRoundedBox(kp - vec2(0.0, 0.001), vec2(0.040, 0.045), 0.007);
       float btn1 = sdRoundedBox(kp - vec2(-0.017, 0.049), vec2(0.007, 0.003), 0.002);
       float btn2 = sdRoundedBox(kp - vec2( 0.009, 0.049), vec2(0.009, 0.003), 0.002);
       float sil = min(bodyC, min(btn1, btn2));
-      float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
+      float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
       occ = max(occ, silMask * 0.86);
       occ = max(occ, groundContact(kp, 0.050) * 0.28);
     }
@@ -430,13 +432,13 @@ const FRAG = /* glsl */ `
     // Pen cup — shorter pens, one pencil with a pointed tip.
     {
       vec2 cp = (puvObj - vec2(0.745, 0.040)) * vec2(pxAspect, 1.0);
-      float cup = sdRoundedBox(cp, vec2(0.024, 0.042), 0.008);
+      float cup = sdRoundedBox(cp - vec2(0.0, -0.023), vec2(0.024, 0.065), 0.008);
       float pencilBody = sdCapsule(cp, vec2(-0.009, 0.036), vec2(-0.014, 0.094), 0.0050);
       float pencilTip  = sdLeaf(cp, vec2(-0.014, 0.094), vec2(-0.015, 0.110), 0.0046);
       float pen2 = sdCapsule(cp, vec2( 0.002, 0.036), vec2( 0.008, 0.105), 0.0052);
       float pen3 = sdCapsule(cp, vec2( 0.012, 0.036), vec2( 0.019, 0.084), 0.0048);
       float sil = min(cup, min(min(pencilBody, pencilTip), min(pen2, pen3)));
-      float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
+      float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
       occ = max(occ, silMask * 0.88);
       occ = max(occ, groundContact(cp + vec2(0.0, 0.040), 0.045) * 0.28);
     }
