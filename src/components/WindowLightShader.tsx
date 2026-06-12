@@ -106,29 +106,51 @@ const FRAG = /* glsl */ `
     return min(d1, d2);
   }
 
-  // One strand of string lights: a catenary-ish wire from A to B with
-  // n detailed bulbs (socket cap + glass globe) hanging beneath it.
-  float lightStrand(vec2 pv, vec2 A, vec2 B, float sag, float sway, float pxA, int nB) {
+  // True catenary profile: 1 at the belly, 0 at the anchors. Flatter at
+  // the bottom of the droop, steeper into the pins — unlike a parabola.
+  float catShape(float u, float k) {
+    float c0 = (exp(0.5 * k) + exp(-0.5 * k)) * 0.5;
+    float x = (u - 0.5) * k;
+    float cu = (exp(x) + exp(-x)) * 0.5;
+    return (c0 - cu) / (c0 - 1.0);
+  }
+
+  // One strand of string lights — a catenary wire with weighted bulbs.
+  // Breeze physics: the belly swings the most (anchors fixed), driven by
+  // two overlapping sine waves (slow main sway + faster flutter). Bulbs
+  // hang plumb from their attach point with a small pendulum lag.
+  // Edges are soft: the strand hangs at the window, furthest from the
+  // wall, so its shadow has the widest penumbra of the scene.
+  float lightStrand(vec2 pv, vec2 A, vec2 B, float sag, float t, float ph, float pxA, int nB) {
     float m = 0.0;
-    float u = (pv.x - A.x) / (B.x - A.x);
-    float dip = 4.0 * u * (1.0 - u);
-    float wireY = mix(A.y, B.y, clamp(u, 0.0, 1.0))
-                - sag * (dip + sway * sin(3.14159 * u));
-    if (u >= 0.0 && u <= 1.0) {
-      m = max(m, 1.0 - smoothstep(0.0014, 0.0034, abs(pv.y - wireY)));
+    float span = B.x - A.x;
+
+    float uRaw = (pv.x - A.x) / span;
+    float shape0 = catShape(clamp(uRaw, 0.0, 1.0), 3.2);
+    // Belly-weighted breeze: main sway + flutter.
+    float breeze = sin(t * 0.35 + ph) * 0.014 + sin(t * 0.95 + ph * 1.7) * 0.0045;
+    float u2 = (pv.x - breeze * shape0 - A.x) / span;
+    if (u2 >= 0.0 && u2 <= 1.0) {
+      float wireY = mix(A.y, B.y, u2) - sag * catShape(u2, 3.2);
+      // Thin wire, hazy edge (light wraps around thin objects).
+      m = max(m, (1.0 - smoothstep(0.0006, 0.0050, abs(pv.y - wireY))) * 0.92);
     }
+
+    // Pendulum-lagged sway for the bulbs (they trail the wire slightly).
+    float lagged = sin(t * 0.35 + ph - 0.55) * 0.016 + sin(t * 0.95 + ph * 1.7 - 0.8) * 0.005;
+
     for (int k = 1; k <= 6; k++) {
       if (k > nB) break;
       float ub = float(k) / (float(nB) + 1.0);
-      float bx = mix(A.x, B.x, ub);
-      float bdip = 4.0 * ub * (1.0 - ub);
-      float by = mix(A.y, B.y, ub) - sag * (bdip + sway * sin(3.14159 * ub));
+      float bShape = catShape(ub, 3.2);
+      // Attach point rides the swaying wire; the bulb trails it.
+      float bx = mix(A.x, B.x, ub) + breeze * bShape * 0.7 + lagged * bShape * 0.45;
+      float by = mix(A.y, B.y, ub) - sag * bShape;
+      // Bulbs hang plumb — cap + globe drop straight down from the wire.
       vec2 d = vec2((pv.x - bx) * pxA, pv.y - by);
-      // socket cap, slim, hugging the wire
-      float cap = sdRoundedBox(d - vec2(0.0, -0.0055), vec2(0.0028, 0.0042), 0.0012);
-      // glass globe below the cap
-      float bulb = sdCircle(d - vec2(0.0, -0.0162), 0.0082);
-      m = max(m, 1.0 - smoothstep(0.0, 0.003, min(cap, bulb)));
+      float cap = sdRoundedBox(d - vec2(0.0, -0.0050), vec2(0.0024, 0.0038), 0.0012);
+      float bulb = sdCircle(d - vec2(0.0, -0.0150), 0.0078);
+      m = max(m, 1.0 - smoothstep(0.0, 0.0062, min(cap, bulb)));
     }
     return m;
   }
@@ -240,6 +262,12 @@ const FRAG = /* glsl */ `
       blind = mix(blind, 0.03, rail);
     }
 
+    // ----- ghost mullions: the frame's own diffuse shadow -----
+    // Extremely faint + broad, hinting the window cross without drawing it.
+    float mullV = 1.0 - smoothstep(0.0, 0.060, abs(puv.x - 0.5));
+    float mullH = 1.0 - smoothstep(0.0, 0.050, abs(puv.y - 0.62));
+    float mull = max(mullV, mullH) * 0.11;
+
     // ----- shadow silhouettes + rim accumulation -----
     float shadows = 1.0;
     float rimGlow = 0.0;
@@ -271,22 +299,21 @@ const FRAG = /* glsl */ `
     // ----- string lights: three deliberate strands, gently swaying -----
     {
       float lights = 0.0;
-      // Strand 1 (5 bulbs) — anchored on the LEFT border ~34% down,
-      // rising to a pin ON THE TOP border at x = 0.45.
+      // Strand 1 (5 bulbs) — left border ~34% down → pin on the top border.
       lights = max(lights, lightStrand(
         puvObj, vec2(-0.015, 0.66), vec2(0.45, 1.005),
-        0.105, sin(uTime * 0.38) * 0.05, pxAspect, 5));
+        0.105, uTime, 0.0, pxAspect, 5));
       // Strand 2 (4 bulbs) — swag along the top border, x 0.33 → 0.63.
       lights = max(lights, lightStrand(
         puvObj, vec2(0.33, 1.01), vec2(0.63, 1.01),
-        0.10, sin(uTime * 0.32 + 3.1) * 0.04, pxAspect, 4));
-      // Strand 3 (3 bulbs) — covers the top-right corner: pinned on the
-      // TOP border and again on the RIGHT border.
+        0.10, uTime, 2.1, pxAspect, 4));
+      // Strand 3 (3 bulbs) — drapes the top-right corner.
       lights = max(lights, lightStrand(
         puvObj, vec2(0.70, 1.005), vec2(1.015, 0.76),
-        0.07, sin(uTime * 0.45 + 1.6) * 0.05, pxAspect, 3));
+        0.07, uTime, 4.3, pxAspect, 3));
 
-      shadows *= 1.0 - lights * 0.85;
+      // Furthest from the wall → most diffuse, least dense.
+      shadows *= 1.0 - lights * 0.74;
     }
 
     // ===== DESK SCENE — irregular spacing, grounded, aspect-true =====
@@ -299,7 +326,7 @@ const FRAG = /* glsl */ `
       float hInner = sdCircle(mp - vec2(0.042, 0.004), 0.012);
       float handle = max(hOuter, -hInner);
       float sil = min(body, handle);
-      float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
+      float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
       shadows *= 1.0 - silMask * 0.88;
       shadows *= 1.0 - groundContact(mp + vec2(0.0, 0.038), 0.055) * 0.30;
       rimGlow += (1.0 - smoothstep(0.001, 0.008, abs(sil - 0.004)))
@@ -332,7 +359,7 @@ const FRAG = /* glsl */ `
       float l5 = sdBentLeaf(pp, rim, vec2( 0.042, 0.100), vec2( 0.080 + swayL, 0.112), 0.0100);
       float leaves = min(min(min(l1, l2), l3), min(l4, l5));
       float sil = min(pot, leaves);
-      float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
+      float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
       shadows *= 1.0 - silMask * 0.86;
       shadows *= 1.0 - groundContact(pp, 0.050) * 0.30;
       rimGlow += (1.0 - smoothstep(0.001, 0.008, abs(sil - 0.004)))
@@ -349,7 +376,7 @@ const FRAG = /* glsl */ `
       sp2.x += sp2.y * 0.03;   // barely leaning
       float lid = sdRoundedBox(sp2, vec2(0.112, 0.071), 0.010);
       float sil = min(lapBase, lid);
-      float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
+      float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
       shadows *= 1.0 - silMask * 0.88;
       rimGlow += (1.0 - smoothstep(0.001, 0.008, abs(sil - 0.004)))
                * smoothstep(0.07, 0.14, lp.y) * 0.50;
@@ -362,7 +389,7 @@ const FRAG = /* glsl */ `
       float btn1 = sdRoundedBox(kp - vec2(-0.017, 0.049), vec2(0.007, 0.003), 0.002);
       float btn2 = sdRoundedBox(kp - vec2( 0.009, 0.049), vec2(0.009, 0.003), 0.002);
       float sil = min(bodyC, min(btn1, btn2));
-      float silMask = 1.0 - smoothstep(0.0, 0.008, sil);
+      float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
       shadows *= 1.0 - silMask * 0.86;
       shadows *= 1.0 - groundContact(kp, 0.050) * 0.28;
     }
@@ -376,7 +403,7 @@ const FRAG = /* glsl */ `
       float pen2 = sdCapsule(cp, vec2( 0.002, 0.036), vec2( 0.008, 0.105), 0.0052);
       float pen3 = sdCapsule(cp, vec2( 0.012, 0.036), vec2( 0.019, 0.084), 0.0048);
       float sil = min(cup, min(min(pencilBody, pencilTip), min(pen2, pen3)));
-      float silMask = 1.0 - smoothstep(0.0, 0.009, sil);
+      float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
       shadows *= 1.0 - silMask * 0.88;
       shadows *= 1.0 - groundContact(cp + vec2(0.0, 0.040), 0.045) * 0.28;
     }
@@ -391,14 +418,15 @@ const FRAG = /* glsl */ `
 
     float lightRaw = patchMask * blind * shimmer * heat;
     lightRaw *= 1.0 - cloud * 0.42 * cloudBand;
+    lightRaw *= 1.0 - mull;
     lightRaw *= mix(1.0, 0.80, blindFrac);
 
     float lightAmt = lightRaw * shadows;
 
     vec3 col = base * 0.82 + sunCol * lightAmt * 0.88;
-    // Color-matched shadows — silhouettes absorb the amber, staying warm
-    // dark brown instead of dropping to black.
-    col += vec3(0.30, 0.125, 0.075) * lightRaw * (1.0 - shadows) * 0.34;
+    // Color-matched shadows — silhouettes block direct sun but the wall
+    // still catches ambient bounce. Core tone lands near #2a1e12.
+    col += vec3(0.20, 0.145, 0.088) * lightRaw * (1.0 - shadows) * 0.42;
     // Rim light on top curves of the desk objects.
     col += sunCol * rimGlow * lightRaw * 0.15;
 
@@ -423,8 +451,11 @@ const FRAG = /* glsl */ `
     vec2 gp = mod(uv * uRes.xy + mod(uTime, 4.0) * 137.0, 512.0);
     float grain = (hash(gp) - 0.5) * 0.034;
     col += grain;
-    float vig = length((uv - 0.5) * vec2(1.02, 1.10));
-    col *= 1.0 - smoothstep(0.62, 1.25, vig) * 0.34;
+    // Vignette shaped toward the rectangular beam rather than a pure
+    // radial falloff — the room edge follows the window's geometry.
+    vec2 bv = abs(uv - 0.5) * vec2(1.04, 1.16);
+    float vig = mix(length(bv), max(bv.x, bv.y), 0.6);
+    col *= 1.0 - smoothstep(0.44, 0.85, vig) * 0.32;
 
     gl_FragColor = vec4(col, 1.0);
   }
