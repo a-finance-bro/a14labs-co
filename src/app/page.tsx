@@ -1,12 +1,21 @@
+"use client";
+
+import { motion, useScroll, useTransform } from "framer-motion";
 import Link from "next/link";
+import { useRef } from "react";
+import { A14Mark, A14Lockup } from "@/components/A14Mark";
+import { RevealOnView, RevealWords } from "@/components/Reveal";
+import { Marquee } from "@/components/Marquee";
+import { MagneticLink } from "@/components/MagneticLink";
 
 export default function Home() {
   return (
     <main className="min-h-screen">
       <Nav />
       <Hero />
+      <ManifestoStrip />
       <Products />
-      <Operators />
+      <Team />
       <Notes />
       <Footer />
     </main>
@@ -15,25 +24,29 @@ export default function Home() {
 
 function Nav() {
   return (
-    <header className="fixed inset-x-0 top-0 z-50 mix-blend-difference">
+    <header className="fixed inset-x-0 top-0 z-50">
       <nav className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-5 md:px-10">
-        <Link href="/" aria-label="A14 Labs — home" className="inline-flex items-center gap-3">
-          <Mark size={28} />
-          <span className="font-mono text-[12px] uppercase tracking-[0.28em] text-foreground/80">
-            A14 Labs
-          </span>
+        <Link
+          href="/"
+          aria-label="A14 Labs — home"
+          className="inline-flex items-center text-foreground"
+          data-cursor-hover
+          data-cursor-label="home"
+        >
+          <A14Lockup size={26} animated />
         </Link>
-        <ul className="hidden items-center gap-8 md:flex">
+        <ul className="hidden items-center gap-9 md:flex">
           {[
             ["Studio", "#studio"],
             ["Products", "#products"],
-            ["Operators", "#operators"],
+            ["Team", "#team"],
             ["Notes", "#notes"],
           ].map(([label, href]) => (
             <li key={href}>
               <a
                 href={href}
-                className="font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/70 transition-colors hover:text-foreground"
+                data-cursor-hover
+                className="relative font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/70 transition-colors hover:text-foreground"
               >
                 {label}
               </a>
@@ -46,41 +59,110 @@ function Nav() {
 }
 
 function Hero() {
+  const ref = useRef<HTMLElement | null>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start start", "end start"],
+  });
+  const markY = useTransform(scrollYProgress, [0, 1], ["0%", "-40%"]);
+  const markScale = useTransform(scrollYProgress, [0, 1], [1, 1.4]);
+  const markOpacity = useTransform(scrollYProgress, [0, 0.8], [0.18, 0]);
+  const titleY = useTransform(scrollYProgress, [0, 1], ["0%", "-25%"]);
+
   return (
     <section
       id="studio"
+      ref={ref}
       className="relative flex min-h-[100svh] w-full flex-col justify-between overflow-hidden px-6 pb-12 pt-32 md:px-10 md:pb-16 md:pt-40"
     >
-      <Lattice className="pointer-events-none absolute inset-0 opacity-[0.18]" />
+      {/* Massive ghost A14 mark behind the headline, parallaxes on scroll. */}
+      <motion.div
+        aria-hidden
+        style={{ y: markY, scale: markScale, opacity: markOpacity }}
+        className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center text-caramel"
+      >
+        <A14Mark size={1100} animated />
+      </motion.div>
 
-      <div className="relative z-10 mx-auto w-full max-w-[1400px]">
-        <p className="font-mono text-[11px] uppercase tracking-[0.4em] text-stone">
-          <span className="text-foreground">{`{Si · 14}`}</span>
-          <span className="ml-3">AI-native product studio</span>
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 mx-auto w-full max-w-[1400px]"
+      >
+        <p className="font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/70">
+          <span className="text-caramel">A14 Labs</span>
+          <span className="ml-4 text-foreground/60">AI-native product studio</span>
         </p>
-      </div>
+      </motion.div>
 
-      <div className="relative z-10 mx-auto w-full max-w-[1400px]">
-        <h1 className="font-sans text-[clamp(56px,11vw,180px)] font-semibold leading-[0.92] tracking-[-0.04em]">
-          We build
+      <motion.div
+        style={{ y: titleY }}
+        className="relative z-10 mx-auto w-full max-w-[1400px]"
+      >
+        <h1 className="font-display text-[clamp(56px,11vw,184px)] font-semibold leading-[0.92] tracking-[-0.04em]">
+          <RevealWords text="We build" baseDelay={0.35} />
           <br />
-          the tools
+          <RevealWords text="the tools" baseDelay={0.55} />
           <br />
-          <span className="italic font-medium text-stone">we wished existed.</span>
+          <span className="font-italic italic font-normal text-crema">
+            <RevealWords text="we wished existed." baseDelay={0.8} italic />
+          </span>
         </h1>
 
-        <div className="mt-10 grid grid-cols-12 gap-4 border-t border-hairline pt-8 md:gap-8 md:pt-10">
-          <p className="col-span-12 font-mono text-[11px] uppercase tracking-[0.28em] text-stone md:col-span-3">
+        <RevealOnView
+          delay={1.1}
+          className="mt-10 grid grid-cols-12 gap-4 border-t border-hairline pt-8 md:gap-8 md:pt-10"
+        >
+          <p className="col-span-12 font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/60 md:col-span-3">
             Mission
           </p>
           <p className="col-span-12 max-w-2xl text-[15px] leading-[1.65] text-foreground/85 md:col-span-9 md:text-[16px]">
-            A14 Labs is an AI-native product studio.{" "}
-            We design, build, and operate AI-native software end-to-end —
-            mostly in finance, education, and personal infrastructure. Bootstrapped.
-            Long-term oriented. No theatre — just shipping things people use.
+            A14 Labs is an AI-native product studio. We design, build, and
+            operate AI-native software end-to-end — mostly in finance,
+            education, and personal infrastructure. Bootstrapped. Long-term
+            oriented. No theatre — just shipping things people use.
           </p>
-        </div>
-      </div>
+        </RevealOnView>
+      </motion.div>
+
+      {/* Scroll cue */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.8, duration: 0.6 }}
+        className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 font-mono text-[10px] uppercase tracking-[0.4em] text-foreground/60"
+      >
+        <motion.span
+          animate={{ y: [0, 6, 0], opacity: [0.6, 1, 0.6] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+          className="inline-block"
+        >
+          Scroll ↓
+        </motion.span>
+      </motion.div>
+    </section>
+  );
+}
+
+function ManifestoStrip() {
+  // Long horizontal marquee strip between hero and products — gives the
+  // page a heartbeat and reinforces the brand cadence.
+  return (
+    <section className="relative z-10 border-y border-hairline bg-mocha/40 py-5 backdrop-blur-sm">
+      <Marquee
+        durationSec={42}
+        className="font-italic text-[clamp(22px,2.4vw,36px)] italic text-foreground/80"
+        items={[
+          "A14 Labs",
+          "An AI-native product studio",
+          "Bootstrapped",
+          "Builders, not bards",
+          "Fintellect · Wend · what comes next",
+          "Shipping is the strategy",
+        ]}
+        separator="·"
+      />
     </section>
   );
 }
@@ -108,114 +190,205 @@ function Products() {
   ];
 
   return (
-    <section id="products" className="border-t border-hairline px-6 py-24 md:px-10 md:py-32">
+    <section
+      id="products"
+      className="relative z-10 border-b border-hairline px-6 py-24 md:px-10 md:py-32"
+    >
       <div className="mx-auto max-w-[1400px]">
-        <div className="mb-12 flex items-end justify-between gap-6 border-b border-hairline pb-6">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.4em] text-stone">
+        <RevealOnView
+          className="mb-12 flex items-end justify-between gap-6 border-b border-hairline pb-6"
+        >
+          <h2 className="font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/60">
             Products
           </h2>
-          <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-stone">
+          <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/60">
             2 active · more soon
           </span>
-        </div>
+        </RevealOnView>
 
         <div className="grid grid-cols-1 gap-px bg-hairline md:grid-cols-2">
-          {items.map((p) => (
-            <article
-              key={p.title}
-              className="flex flex-col justify-between gap-8 bg-background p-8 md:p-12"
-            >
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-stone">
-                  {p.tag}
-                </p>
-                <h3 className="mt-6 font-sans text-[clamp(32px,4vw,52px)] font-semibold leading-[1] tracking-[-0.03em]">
-                  {p.title}
-                </h3>
-                <p className="mt-3 text-[15px] italic leading-snug text-foreground/75">
-                  {p.tagline}
-                </p>
-                <p className="mt-6 max-w-md text-[14px] leading-[1.65] text-foreground/80">
-                  {p.body}
-                </p>
-              </div>
-              <a
-                href={p.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/80 transition-colors hover:text-foreground"
-              >
-                <span>↗</span>
-                <span>{p.hrefLabel}</span>
-              </a>
-            </article>
+          {items.map((p, i) => (
+            <ProductCard key={p.title} {...p} delay={i * 0.12} />
           ))}
         </div>
 
-        <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.32em] text-stone">
-          Next product → in build. Quiet until it ships.
-        </p>
+        <RevealOnView delay={0.2} className="mt-8">
+          <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/60">
+            Next product → in build. Quiet until it ships.
+          </p>
+        </RevealOnView>
       </div>
     </section>
   );
 }
 
-function Operators() {
+function ProductCard({
+  tag,
+  title,
+  tagline,
+  body,
+  href,
+  hrefLabel,
+  delay = 0,
+}: {
+  tag: string;
+  title: string;
+  tagline: string;
+  body: string;
+  href: string;
+  hrefLabel: string;
+  delay?: number;
+}) {
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 60, rotateX: -8 }}
+      whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+      viewport={{ once: true, margin: "-10% 0px" }}
+      transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay }}
+      style={{ transformPerspective: 1200 }}
+      whileHover={{ y: -6 }}
+      className="group relative flex flex-col justify-between gap-8 bg-background p-8 md:p-12"
+    >
+      <div>
+        <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-caramel">
+          {tag}
+        </p>
+        <h3 className="mt-6 font-display text-[clamp(32px,4vw,52px)] font-semibold leading-[1] tracking-[-0.03em]">
+          {title}
+        </h3>
+        <p className="mt-3 font-italic text-[18px] italic leading-snug text-crema">
+          {tagline}
+        </p>
+        <p className="mt-6 max-w-md text-[14px] leading-[1.65] text-foreground/80">
+          {body}
+        </p>
+      </div>
+      <MagneticLink
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        data-cursor-hover
+        data-cursor-label="visit →"
+        className="inline-flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/85 transition-colors hover:text-caramel"
+      >
+        <span>↗</span>
+        <span>{hrefLabel}</span>
+      </MagneticLink>
+      {/* Corner ticks for the lab-notebook feel. */}
+      <CornerTicks />
+    </motion.article>
+  );
+}
+
+function CornerTicks() {
+  return (
+    <>
+      {[
+        "top-3 left-3 border-t border-l",
+        "top-3 right-3 border-t border-r",
+        "bottom-3 left-3 border-b border-l",
+        "bottom-3 right-3 border-b border-r",
+      ].map((cls) => (
+        <span
+          key={cls}
+          aria-hidden
+          className={`absolute h-3 w-3 border-foreground/25 transition-colors group-hover:border-caramel/70 ${cls}`}
+        />
+      ))}
+    </>
+  );
+}
+
+function Team() {
+  const members = [
+    {
+      name: "Ansh Vasani",
+      role: "Founder · Co-CEO · technical",
+      bio:
+        "Solo dev across the stack; co-leadership on strategy, finance, ops. Previously at 1435 Capital (VC, Princeton) and currently CTO of GlobalSVF. SF Bay Area, originally NYC.",
+      links: [
+        { href: "https://anshvasani.com", label: "anshvasani.com" },
+        { href: "https://linkedin.anshvasani.com", label: "LinkedIn" },
+      ],
+    },
+    {
+      name: "Ava Yu",
+      role: "Founder · Co-CEO · growth",
+      bio:
+        "Growth & partnerships across the A14 portfolio; co-leads strategy, finance, and ops alongside Ansh. Drives go-to-market for Fintellect and Wend, and the partner network across APAC and the US.",
+      links: [],
+    },
+  ];
+
   return (
     <section
-      id="operators"
-      className="border-t border-hairline px-6 py-24 md:px-10 md:py-32"
+      id="team"
+      className="relative z-10 border-b border-hairline px-6 py-24 md:px-10 md:py-32"
     >
       <div className="mx-auto max-w-[1400px]">
-        <div className="mb-12 border-b border-hairline pb-6">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.4em] text-stone">
-            Operators
+        <RevealOnView className="mb-12 flex items-end justify-between gap-6 border-b border-hairline pb-6">
+          <h2 className="font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/60">
+            Meet the Team
           </h2>
+          <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/60">
+            2 founders · co-led
+          </span>
+        </RevealOnView>
+
+        <div className="grid grid-cols-1 gap-px bg-hairline md:grid-cols-2">
+          {members.map((m, i) => (
+            <motion.article
+              key={m.name}
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-10% 0px" }}
+              transition={{ duration: 0.9, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] }}
+              className="group relative flex flex-col justify-between gap-10 bg-background p-8 md:p-12"
+            >
+              <div>
+                <span className="font-mono text-[11px] uppercase tracking-[0.32em] text-caramel">
+                  {String(i + 1).padStart(2, "0")} / Founder
+                </span>
+                <h3 className="mt-6 font-display text-[clamp(40px,5vw,72px)] font-semibold leading-[0.95] tracking-[-0.03em]">
+                  <span className="font-italic italic font-normal text-crema">
+                    {m.name.split(" ")[0]}
+                  </span>{" "}
+                  {m.name.split(" ").slice(1).join(" ")}
+                </h3>
+                <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/65">
+                  {m.role}
+                </p>
+                <p className="mt-6 max-w-md text-[14px] leading-[1.7] text-foreground/85 md:text-[15px]">
+                  {m.bio}
+                </p>
+              </div>
+              {m.links.length > 0 && (
+                <div className="flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/70">
+                  {m.links.map((l) => (
+                    <MagneticLink
+                      key={l.href}
+                      href={l.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-cursor-hover
+                      data-cursor-label="visit"
+                      className="hover:text-caramel"
+                    >
+                      ↗ {l.label}
+                    </MagneticLink>
+                  ))}
+                </div>
+              )}
+              <CornerTicks />
+            </motion.article>
+          ))}
         </div>
 
-        <div className="grid grid-cols-12 gap-8">
-          <div className="col-span-12 md:col-span-4">
-            <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-stone">
-              Co-founded · two founders
-            </p>
-            <h3 className="mt-4 font-sans text-[clamp(36px,4.5vw,64px)] font-semibold leading-[0.95] tracking-[-0.03em]">
-              Ansh Vasani
-            </h3>
-            <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.32em] text-stone">
-              Founder · Co-CEO · technical
-            </p>
-          </div>
-          <div className="col-span-12 md:col-span-7 md:col-start-6">
-            <p className="text-[15px] leading-[1.7] text-foreground/85 md:text-[16px]">
-              Solo developer across the A14 stack — Fintellect, Wend, and what
-              comes next. Architect, builder, and operator. Previously at 1435
-              Capital (VC, Princeton) and currently CTO of GlobalSVF. SF Bay Area,
-              originally NYC.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/70">
-              <a
-                href="https://anshvasani.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground"
-              >
-                ↗ anshvasani.com
-              </a>
-              <a
-                href="https://linkedin.anshvasani.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground"
-              >
-                ↗ LinkedIn
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <p className="mt-10 max-w-3xl font-mono text-[11px] uppercase tracking-[0.32em] text-stone">
-          Engineers, designers, operators — quiet inquiries welcome.
-        </p>
+        <RevealOnView delay={0.2} className="mt-10">
+          <p className="max-w-3xl font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/60">
+            Engineers, designers, operators — quiet inquiries welcome.
+          </p>
+        </RevealOnView>
       </div>
     </section>
   );
@@ -225,37 +398,45 @@ function Notes() {
   return (
     <section
       id="notes"
-      className="border-t border-hairline px-6 py-24 md:px-10 md:py-32"
+      className="relative z-10 px-6 py-24 md:px-10 md:py-32"
     >
       <div className="mx-auto grid max-w-[1400px] grid-cols-12 gap-8">
-        <div className="col-span-12 md:col-span-4">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.4em] text-stone">
+        <RevealOnView delay={0} className="col-span-12 md:col-span-4">
+          <h2 className="font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/60">
             Notes
           </h2>
-        </div>
+        </RevealOnView>
         <div className="col-span-12 md:col-span-8">
-          <p className="max-w-2xl text-[clamp(22px,2.4vw,34px)] font-medium leading-[1.2] tracking-[-0.015em]">
-            Press, partnerships, recruiting, investors — write to{" "}
-            <a
-              href="mailto:hello@a14labs.co"
-              className="underline decoration-stone underline-offset-[6px] transition-colors hover:decoration-foreground"
-            >
-              hello@a14labs.co
-            </a>
-            . Quiet replies preferred.
-          </p>
-          <div className="mt-10 grid grid-cols-1 gap-x-12 gap-y-6 font-mono text-[11px] uppercase tracking-[0.28em] text-stone sm:grid-cols-2">
+          <RevealOnView delay={0.1}>
+            <p className="max-w-2xl font-display text-[clamp(24px,2.6vw,38px)] font-medium leading-[1.2] tracking-[-0.015em]">
+              Press, partnerships, recruiting, investors — write to{" "}
+              <MagneticLink
+                href="mailto:hello@a14labs.co"
+                data-cursor-hover
+                data-cursor-label="say hi"
+                className="text-caramel underline decoration-caramel/50 underline-offset-[6px] transition-colors hover:decoration-caramel"
+              >
+                hello@a14labs.co
+              </MagneticLink>
+              .
+              <span className="font-italic italic text-crema/90"> Quiet replies preferred.</span>
+            </p>
+          </RevealOnView>
+          <RevealOnView
+            delay={0.25}
+            className="mt-12 grid grid-cols-1 gap-x-12 gap-y-8 font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/60 sm:grid-cols-2"
+          >
             <div>
               <p>Studio</p>
-              <p className="mt-2 text-foreground/80">A14 Labs LLC</p>
-              <p className="text-foreground/80">San Francisco · NYC</p>
+              <p className="mt-2 text-foreground/85">A14 Labs LLC</p>
+              <p className="text-foreground/85">San Francisco · NYC</p>
             </div>
             <div>
               <p>Status</p>
-              <p className="mt-2 text-foreground/80">Bootstrapped · 2 products live</p>
-              <p className="text-foreground/80">Hiring on referral only</p>
+              <p className="mt-2 text-foreground/85">Bootstrapped · 2 products live</p>
+              <p className="text-foreground/85">Hiring on referral only</p>
             </div>
-          </div>
+          </RevealOnView>
         </div>
       </div>
     </section>
@@ -264,95 +445,30 @@ function Notes() {
 
 function Footer() {
   return (
-    <footer className="border-t border-hairline px-6 py-8 md:px-10">
-      <div className="mx-auto flex max-w-[1400px] flex-col items-start justify-between gap-3 font-mono text-[11px] uppercase tracking-[0.32em] text-stone sm:flex-row sm:items-center">
+    <footer className="relative z-10 border-t border-hairline">
+      <div className="border-b border-hairline py-6">
+        <Marquee
+          durationSec={50}
+          className="font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/70"
+          items={[
+            "A14 Labs",
+            "Est. 2025",
+            "San Francisco",
+            "New York",
+            "Bootstrapped",
+            "Builders, not bards",
+            "Hello@a14labs.co",
+          ]}
+          separator="✦"
+        />
+      </div>
+      <div className="mx-auto flex max-w-[1400px] flex-col items-start justify-between gap-3 px-6 py-8 font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/55 md:flex-row md:items-center md:px-10">
         <div className="flex items-center gap-3">
-          <Mark size={20} />
+          <A14Mark size={20} />
           <span>A14 Labs · est. 2025</span>
         </div>
-        <span>{`{Si · 14}`} — Atomic number 14. Silicon. Build matter.</span>
+        <span>© {new Date().getFullYear()} A14 Labs LLC — All rights reserved.</span>
       </div>
     </footer>
-  );
-}
-
-function Mark({ size = 24 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 100 100"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden
-    >
-      <rect
-        x="6"
-        y="6"
-        width="88"
-        height="88"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="3"
-      />
-      <text
-        x="86"
-        y="28"
-        textAnchor="end"
-        fontFamily="var(--font-geist-mono), monospace"
-        fontWeight={600}
-        fontSize="13"
-        fill="currentColor"
-      >
-        14
-      </text>
-      <text
-        x="50"
-        y="68"
-        textAnchor="middle"
-        fontFamily="var(--font-geist-sans), sans-serif"
-        fontWeight={800}
-        fontSize="44"
-        fill="currentColor"
-      >
-        Si
-      </text>
-    </svg>
-  );
-}
-
-function Lattice({ className }: { className?: string }) {
-  const cols = 14;
-  const rows = 8;
-  const ticks: Array<{ x: number; y: number }> = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      ticks.push({ x: (c + 0.5) / cols, y: (r + 0.5) / rows });
-    }
-  }
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 1000 600"
-      preserveAspectRatio="none"
-      aria-hidden
-    >
-      {ticks.map(({ x, y }, i) => (
-        <g key={i} stroke="currentColor" strokeWidth={1}>
-          <line
-            x1={x * 1000 - 6}
-            y1={y * 600}
-            x2={x * 1000 + 6}
-            y2={y * 600}
-          />
-          <line
-            x1={x * 1000}
-            y1={y * 600 - 6}
-            x2={x * 1000}
-            y2={y * 600 + 6}
-          />
-        </g>
-      ))}
-    </svg>
   );
 }
