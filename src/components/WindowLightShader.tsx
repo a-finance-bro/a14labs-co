@@ -7,19 +7,26 @@ import * as THREE from "three";
 /**
  * Window-light projection shader.
  *
- * The window (and everything between it and the wall) is BEHIND the
- * camera — we only see what the sunlight paints on the wall:
+ * The window — and everything between it and the wall — is BEHIND the
+ * camera. We only see what the sunlight paints on the wall:
  *   - the coffee-crema flow as the wall surface
- *   - a straight-edged warm rectangle of projected window light
- *   - soft clouds drifting across the upper part of the light
- *   - shadows cast inside that light: the A14 brand block (logo +
- *     headline + caption), a coffee mug with animated steam, a pen cup
- *   - venetian blinds drawn DOWN from the top as the visitor scrolls;
- *     invisible at first paint, fully closed (thin slits) after one
- *     viewport of scrolling
- *   - after the sticky hero releases, the light patch lifts away with
- *     the page (uLift) so later sections read on dark crema
- *   - film grain + vignette
+ *   - a straight-edged warm rectangle of projected window light with a
+ *     slow "breathing" intensity
+ *   - soft two-layer clouds drifting across the upper light
+ *   - shadows cast inside the light, color-matched (warm dark brown, not
+ *     black): the A14 mark with a BLINKING accent square (terminal
+ *     cursor), Wend + Fintellect product marks, and a desk-scene lineup —
+ *     mug with steam, poted plant with pointed fanning leaves, solid
+ *     MacBook silhouette, digital desk clock with buttons, pen cup
+ *   - string-light swags across the top, swaying in the breeze
+ *   - per-object contact shadows grounding everything on the sill, and
+ *     faint rim light on top curves
+ *   - cursor parallax: desk items shift opposite the mouse slightly more
+ *     than the brand block (depth illusion)
+ *   - venetian blinds drawn DOWN as the visitor scrolls — with slight
+ *     side + bottom clearance and a gentle sway when down
+ *   - after the sticky hero releases, the light lifts away with the page
+ *   - dust motes, film grain, soft vignette
  */
 
 const VERT = /* glsl */ `
@@ -35,10 +42,12 @@ const FRAG = /* glsl */ `
   varying vec2 vUv;
   uniform float uTime;
   uniform vec2  uRes;
-  uniform float uScroll;       // 0..1 — drives blind close + sun fade
-  uniform float uLift;         // viewport-heights the page has scrolled past the hero
-  uniform sampler2D uLogo;     // alpha = logo mask
-  uniform vec2 uLogoAspect;    // logo (w, h) px
+  uniform float uScroll;       // 0..1 — blind close progress
+  uniform float uLift;         // viewport-heights scrolled past the hero
+  uniform vec2  uMouse;        // smoothed cursor, -1..1 (y up)
+  uniform sampler2D uLogo;     // alpha = brand shadow mask
+  uniform vec2 uLogoAspect;    // texture (w, h) px
+  uniform vec4 uSqRect;        // accent square rect in texture UV (x0,y0,x1,y1)
 
   // -------- noise -----------------
   float hash(vec2 p) {
@@ -68,28 +77,29 @@ const FRAG = /* glsl */ `
   }
 
   // -------- 2D SDFs ---------------
-  float sdBox(vec2 p, vec2 b) {
-    vec2 q = abs(p) - b;
-    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
-  }
   float sdRoundedBox(vec2 p, vec2 b, float r) {
     vec2 q = abs(p) - b + r;
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
   }
   float sdCircle(vec2 p, float r) { return length(p) - r; }
-  // capsule from a to b, radius r
   float sdCapsule(vec2 p, vec2 a, vec2 b, float r) {
     vec2 pa = p - a; vec2 ba = b - a;
     float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
     return length(pa - ba * h) - r;
   }
+  // Tapered capsule — width shrinks to a point at b. Pointed leaf / pencil tip.
+  float sdLeaf(vec2 p, vec2 a, vec2 b, float w) {
+    vec2 pa = p - a; vec2 ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    float r = w * (1.0 - h * 0.94);
+    return length(pa - ba * h) - r;
+  }
 
-  // Sample logo with soft offset blur — returns shadow density 0..1.
+  // Sample brand texture with soft blur — returns shadow density 0..1.
   float sampleLogo(vec2 uv, float blurPx) {
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
     vec2 px = blurPx / uLogoAspect;
     float s = 0.0;
-    // 13-tap gaussian-ish.
     s += texture2D(uLogo, uv).a * 0.20;
     s += texture2D(uLogo, uv + vec2( px.x, 0.0)).a * 0.11;
     s += texture2D(uLogo, uv + vec2(-px.x, 0.0)).a * 0.11;
@@ -106,12 +116,18 @@ const FRAG = /* glsl */ `
     return clamp(s, 0.0, 1.0);
   }
 
+  // Soft elliptical contact shadow under an object base.
+  float groundContact(vec2 op, float w) {
+    vec2 g = vec2(op.x, (op.y - 0.006) * 4.5);
+    return 1.0 - smoothstep(w * 0.35, w, length(g));
+  }
+
   // -------- main ------------------
   void main() {
     vec2 uv = vUv;
     float aspect = uRes.x / uRes.y;
 
-    // ===== BASE: coffee-crema flow (the wall surface) =====
+    // ===== BASE: coffee-crema flow =====
     vec2 cuv = uv;
     cuv.x *= aspect;
     float t = uTime * 0.045;
@@ -135,10 +151,7 @@ const FRAG = /* glsl */ `
     base = mix(base, caramel, smoothstep(0.78, 1.0, v) * 0.22);
 
     // ===== PROJECTED WINDOW LIGHT =====
-    // Window is behind the camera; this is its light cast on the wall.
-    // Straight-on projection — clean vertical edges.
     vec2 p = uv;
-
     vec2 patchC = vec2(0.5, 0.52 + uLift);
     vec2 patchH = vec2(0.36, 0.40);
     vec2 d2 = abs(p - patchC) - patchH;
@@ -147,81 +160,141 @@ const FRAG = /* glsl */ `
     float pen = mix(0.014, 0.040, smoothstep(0.2, 0.9, p.y));
     float patchMask = 1.0 - smoothstep(-pen, pen, dPatch);
 
-    // Patch-local coordinates 0..1 (y: 0 = bottom of window light).
     vec2 puv = (p - (patchC - patchH)) / (patchH * 2.0);
-    // Patch dimensions in real pixels — keeps every shadow aspect-true
-    // regardless of viewport shape.
     vec2 patchPx = patchH * 2.0 * uRes;
     float pxAspect = patchPx.x / patchPx.y;
 
-    // ----- clouds drifting past, upper window -----
-    // Two layers at different speeds/scales so they parallax like real sky.
+    // Cursor parallax — desk items shift opposite the cursor; the brand
+    // block shifts less (it hangs closer to the wall).
+    vec2 puvObj   = puv + uMouse * vec2(0.012, 0.007);
+    vec2 puvBrand = puv + uMouse * vec2(0.005, 0.003);
+
+    // ----- clouds, two drifting layers -----
     float cloudBand = smoothstep(0.35, 0.88, puv.y);
     float cloud1 = fbm(vec2(puv.x * 1.8 + uTime * 0.020, puv.y * 1.5 + 3.7));
     float cloud2 = fbm(vec2(puv.x * 3.1 - uTime * 0.011, puv.y * 2.3 + 9.2));
     float cloud = smoothstep(0.30, 0.80, cloud1 * 0.65 + cloud2 * 0.45);
 
-    // ----- venetian blinds: drawn DOWN from the top as you scroll -----
-    // uScroll 0 → no blinds at all (clean light).
-    // uScroll 1 → blinds cover the whole window; only thin slits pass light.
-    float blindFrac = smoothstep(0.02, 0.95, uScroll);  // fraction covered, from top
-    float coverEdge = 1.0 - blindFrac;                  // puv.y of the blind bottom
-    // Covered where puv.y > coverEdge (blinds hang from the top).
-    float inBlind = smoothstep(coverEdge - 0.008, coverEdge + 0.008, puv.y);
+    // ----- venetian blinds: drawn DOWN from the top on scroll -----
+    float blindFrac = smoothstep(0.02, 0.95, uScroll);
+    // Gentle sway when hanging — lateral drift + slight bob of the rail.
+    float swayX = sin(uTime * 0.40) * 0.004 + sin(uTime * 0.23 + 1.7) * 0.0025;
+    float swayY = sin(uTime * 0.33 + 0.6) * 0.003;
+    // Blinds stop a touch above the patch floor (clearance at the bottom).
+    float coverEdge = mix(1.02, 0.035 + swayY, blindFrac);
+    // Side clearance — the blind is slightly narrower than the window light.
+    float sideM = 0.018;
+    float sideMask = smoothstep(sideM - 0.005 + swayX, sideM + 0.005 + swayX, puv.x)
+                   * (1.0 - smoothstep(1.0 - sideM - 0.005 + swayX, 1.0 - sideM + 0.005 + swayX, puv.x));
+    float inBlind = smoothstep(coverEdge - 0.008, coverEdge + 0.008, puv.y) * sideMask;
 
     float nSlats = 18.0;
     float slatPos = fract(puv.y * nSlats);
-    // Thin slit of light between slats — fixed thin width.
     float slitHalf = 0.10;
     float distC = abs(slatPos - 0.5);
     float slit = 1.0 - smoothstep(slitHalf - 0.04, slitHalf + 0.04, distC);
-    float blindLight = max(slit, 0.045);   // tiny leak through slats
-
-    // Light through the window: full where uncovered, slit-pattern where covered.
+    float blindLight = max(slit, 0.045);
     float blind = mix(1.0, blindLight, inBlind);
 
-    // Bottom rail of the blind stack — a solid dark bar at the cover edge.
     if (blindFrac > 0.01 && blindFrac < 0.995) {
-      float rail = 1.0 - smoothstep(0.004, 0.012, abs(puv.y - coverEdge));
+      float rail = (1.0 - smoothstep(0.004, 0.012, abs(puv.y - coverEdge))) * sideMask;
       blind = mix(blind, 0.03, rail);
     }
 
-    // ----- shadow silhouettes (objects between window and wall) -----
+    // ----- shadow silhouettes + rim accumulation -----
     float shadows = 1.0;
+    float rimGlow = 0.0;
 
-    // Brand shadow — the A14 block, large + aspect-true. Blur varies with
-    // height: the A14 mark (top) casts sharp; the caption (bottom) hangs
-    // further from the wall and blurs.
+    // Brand shadow — "A14" centered (texture) + blinking accent square.
     {
       float texAspect = uLogoAspect.x / uLogoAspect.y;
       float boxW = 0.95;
       float boxH = boxW * pxAspect / texAspect;
       if (boxH > 0.84) { boxW *= 0.84 / boxH; boxH = 0.84; }
-      vec2 luvC = vec2(0.5, 0.50);
-      vec2 luv = (puv - luvC) / vec2(boxW, boxH) + 0.5;
-      float depthBlur = mix(6.0, 1.6, smoothstep(0.25, 0.75, luv.y));
+      vec2 luvC = vec2(0.5, 0.52);
+      vec2 luv = (puvBrand - luvC) / vec2(boxW, boxH) + 0.5;
+      float depthBlur = mix(5.0, 1.6, smoothstep(0.25, 0.75, luv.y));
       float s = sampleLogo(luv, depthBlur);
+
+      // Accent square — drawn here (not in the texture) so it can blink
+      // like a terminal cursor. Steady ~1 Hz cadence.
+      float blink = step(fract(uTime * 0.85), 0.58);
+      float e = 0.004;
+      float inSq = smoothstep(uSqRect.x - e, uSqRect.x + e, luv.x)
+                 * (1.0 - smoothstep(uSqRect.z - e, uSqRect.z + e, luv.x))
+                 * smoothstep(uSqRect.y - e, uSqRect.y + e, luv.y)
+                 * (1.0 - smoothstep(uSqRect.w - e, uSqRect.w + e, luv.y));
+      s = max(s, inSq * blink * 0.96);
+
       shadows *= 1.0 - s * 0.90;
     }
 
-    // Coffee mug — aspect-true (x measured in patch-height units), base
-    // clipped just below the patch floor so it sits on the sill.
+    // ----- string lights: two overlapping swag chains, swaying -----
     {
-      vec2 mp = (puv - vec2(0.13, 0.072)) * vec2(pxAspect, 1.0);
+      float lights = 0.0;
+
+      // chain A: 3 swags, hangs higher
+      {
+        float sway = sin(uTime * 0.45) * 0.006;
+        float nSwag = 3.0;
+        float xx = puvObj.x + sway;
+        float u = fract(xx * nSwag);
+        float dip = 4.0 * u * (1.0 - u);
+        float wireY = 0.965 - 0.045 * dip;
+        float wire = 1.0 - smoothstep(0.0018, 0.0042, abs(puvObj.y - wireY));
+        lights = max(lights, wire);
+        // bulbs at thirds of each swag
+        for (int k = 0; k < 3; k++) {
+          float ub = 0.25 + 0.25 * float(k);
+          float by = 0.965 - 0.045 * (4.0 * ub * (1.0 - ub)) - 0.014;
+          float dx = (u - ub) / nSwag * pxAspect;
+          float bulb = 1.0 - smoothstep(0.006, 0.011, length(vec2(dx, puvObj.y - by)));
+          lights = max(lights, bulb);
+        }
+      }
+      // chain B: 4 swags, lower + counter-phase
+      {
+        float sway = sin(uTime * 0.36 + 2.1) * 0.005;
+        float nSwag = 4.0;
+        float xx = puvObj.x + sway + 0.12;
+        float u = fract(xx * nSwag);
+        float dip = 4.0 * u * (1.0 - u);
+        float wireY = 0.925 - 0.035 * dip;
+        float wire = 1.0 - smoothstep(0.0018, 0.0042, abs(puvObj.y - wireY));
+        lights = max(lights, wire);
+        for (int k = 0; k < 2; k++) {
+          float ub = 0.33 + 0.34 * float(k);
+          float by = 0.925 - 0.035 * (4.0 * ub * (1.0 - ub)) - 0.013;
+          float dx = (u - ub) / nSwag * pxAspect;
+          float bulb = 1.0 - smoothstep(0.0055, 0.010, length(vec2(dx, puvObj.y - by)));
+          lights = max(lights, bulb);
+        }
+      }
+
+      shadows *= 1.0 - lights * 0.82;
+    }
+
+    // ===== DESK SCENE — irregular spacing, grounded, aspect-true =====
+
+    // Coffee mug + steam (left).
+    {
+      vec2 mp = (puvObj - vec2(0.115, 0.072)) * vec2(pxAspect, 1.0);
       float body = sdRoundedBox(mp, vec2(0.055, 0.078), 0.022);
       float hOuter = sdCircle(mp - vec2(0.078, 0.008), 0.038);
       float hInner = sdCircle(mp - vec2(0.078, 0.008), 0.022);
       float handle = max(hOuter, -hInner);
-      float mug = min(body, handle);
-      float mugMask = 1.0 - smoothstep(0.0, 0.012, mug);
-      shadows *= 1.0 - mugMask * 0.88;
+      float sil = min(body, handle);
+      float silMask = 1.0 - smoothstep(0.0, 0.012, sil);
+      shadows *= 1.0 - silMask * 0.88;
+      shadows *= 1.0 - groundContact(mp + vec2(0.0, 0.072), 0.085) * 0.30;
+      rimGlow += (1.0 - smoothstep(0.001, 0.009, abs(sil - 0.004)))
+               * smoothstep(0.02, 0.07, mp.y) * 0.55;
 
-      // Steam shadow — rises from the rim. Slightly more present.
-      vec2 sp = (puv - vec2(0.13, 0.165)) * vec2(pxAspect, 1.0);
+      vec2 sp = (puvObj - vec2(0.115, 0.165)) * vec2(pxAspect, 1.0);
       if (sp.y > -0.02 && sp.y < 0.55) {
-        float sway = sin(sp.y * 9.0 + uTime * 1.1) * 0.030
-                   + sin(sp.y * 21.0 - uTime * 0.6) * 0.012;
-        float ribbon = abs(sp.x - sway);
+        float swayS = sin(sp.y * 9.0 + uTime * 1.1) * 0.030
+                    + sin(sp.y * 21.0 - uTime * 0.6) * 0.012;
+        float ribbon = abs(sp.x - swayS);
         float widthFade = 1.0 - smoothstep(0.0, 0.038 + sp.y * 0.08, ribbon);
         float heightFade = (1.0 - smoothstep(0.10, 0.52, sp.y));
         float plume = fbm(vec2(sp.x * 7.0, sp.y * 2.8 - uTime * 0.26));
@@ -230,61 +303,68 @@ const FRAG = /* glsl */ `
       }
     }
 
-    // Pen cup — aspect-true, grounded lower-right. Cup + pens are merged
-    // into ONE silhouette before applying, so their overlap doesn't double-
-    // darken (a single object can't shade the same point twice).
+    // Potted plant — pointed leaves fanning out (closer to the mug).
     {
-      vec2 cp = (puv - vec2(0.875, 0.058)) * vec2(pxAspect, 1.0);
-      float cup = sdRoundedBox(cp, vec2(0.036, 0.066), 0.012);
-      float pen1 = sdCapsule(cp, vec2(-0.015, 0.06), vec2(-0.026, 0.185), 0.0058);
-      float pen2 = sdCapsule(cp, vec2( 0.004, 0.06), vec2( 0.016, 0.205), 0.0062);
-      float pen3 = sdCapsule(cp, vec2( 0.020, 0.06), vec2( 0.033, 0.150), 0.0055);
-      float sil = min(cup, min(min(pen1, pen2), pen3));
-      float silMask = 1.0 - smoothstep(0.0, 0.011, sil);
-      shadows *= 1.0 - silMask * 0.88;
-    }
-
-    // Potted plant — pot + fanned leaves, single silhouette, grounded.
-    {
-      vec2 pp = (puv - vec2(0.26, 0.0)) * vec2(pxAspect, 1.0);
-      float pot = sdRoundedBox(pp - vec2(0.0, 0.046), vec2(0.041, 0.046), 0.012);
-      vec2 stemBase = vec2(0.0, 0.092);
-      float sway = sin(uTime * 0.5) * 0.004;
-      float l1 = sdCapsule(pp, stemBase, vec2(-0.062 + sway, 0.195), 0.011);
-      float l2 = sdCapsule(pp, stemBase, vec2( 0.002 + sway, 0.225), 0.012);
-      float l3 = sdCapsule(pp, stemBase, vec2( 0.058 + sway, 0.185), 0.011);
-      float l4 = sdCapsule(pp, stemBase, vec2(-0.030 + sway, 0.165), 0.009);
-      float l5 = sdCapsule(pp, stemBase, vec2( 0.032 + sway, 0.150), 0.009);
-      float tip1 = sdCircle(pp - vec2(-0.062 + sway, 0.195), 0.018);
-      float tip2 = sdCircle(pp - vec2( 0.002 + sway, 0.225), 0.020);
-      float tip3 = sdCircle(pp - vec2( 0.058 + sway, 0.185), 0.018);
-      float leaves = min(min(min(l1, l2), min(l3, l4)), l5);
-      leaves = min(leaves, min(min(tip1, tip2), tip3));
+      vec2 pp = (puvObj - vec2(0.215, 0.0)) * vec2(pxAspect, 1.0);
+      float pot = sdRoundedBox(pp - vec2(0.0, 0.042), vec2(0.038, 0.042), 0.010);
+      vec2 rim = vec2(0.0, 0.085);
+      float swayL = sin(uTime * 0.5) * 0.005;
+      float l1 = sdLeaf(pp, rim, vec2(-0.085 + swayL, 0.190), 0.015);
+      float l2 = sdLeaf(pp, rim, vec2(-0.040 + swayL, 0.235), 0.015);
+      float l3 = sdLeaf(pp, rim, vec2( 0.004 + swayL, 0.255), 0.016);
+      float l4 = sdLeaf(pp, rim, vec2( 0.048 + swayL, 0.225), 0.015);
+      float l5 = sdLeaf(pp, rim, vec2( 0.088 + swayL, 0.175), 0.014);
+      float l6 = sdLeaf(pp, rim, vec2(-0.060 + swayL, 0.140), 0.012);
+      float l7 = sdLeaf(pp, rim, vec2( 0.058 + swayL, 0.130), 0.012);
+      float leaves = min(min(min(l1, l2), min(l3, l4)), min(min(l5, l6), l7));
       float sil = min(pot, leaves);
-      float silMask = 1.0 - smoothstep(0.0, 0.012, sil);
+      float silMask = 1.0 - smoothstep(0.0, 0.011, sil);
       shadows *= 1.0 - silMask * 0.86;
+      shadows *= 1.0 - groundContact(pp, 0.075) * 0.30;
+      rimGlow += (1.0 - smoothstep(0.001, 0.009, abs(sil - 0.004)))
+               * smoothstep(0.10, 0.20, pp.y) * 0.45;
     }
 
-    // Open laptop — center of the sill. Solid base slab + screen rendered
-    // as an outline (lid bezel), leaning back a few degrees.
+    // MacBook — solid silhouette (light can't pass through the lid),
+    // nearly upright, off-center left.
     {
-      vec2 lp = (puv - vec2(0.5, 0.0)) * vec2(pxAspect, 1.0);
-      float lapBase = sdRoundedBox(lp - vec2(0.0, 0.013), vec2(0.135, 0.013), 0.006);
-      vec2 sp2 = lp - vec2(0.0, 0.092);
-      sp2.x += sp2.y * 0.10;   // slight backward lean
-      float screenSd = sdRoundedBox(sp2, vec2(0.118, 0.064), 0.009);
-      float bezel = abs(screenSd) - 0.0055;   // outline only
-      float sil = min(lapBase, bezel);
+      vec2 lp = (puvObj - vec2(0.46, 0.0)) * vec2(pxAspect, 1.0);
+      float lapBase = sdRoundedBox(lp - vec2(0.0, 0.013), vec2(0.130, 0.013), 0.006);
+      vec2 sp2 = lp - vec2(0.0, 0.088);
+      sp2.x += sp2.y * 0.03;   // barely leaning
+      float lid = sdRoundedBox(sp2, vec2(0.112, 0.063), 0.010);
+      float sil = min(lapBase, lid);
       float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
-      shadows *= 1.0 - silMask * 0.86;
+      shadows *= 1.0 - silMask * 0.88;
+      shadows *= 1.0 - groundContact(lp, 0.155) * 0.30;
+      rimGlow += (1.0 - smoothstep(0.001, 0.008, abs(sil - 0.004)))
+               * smoothstep(0.08, 0.15, lp.y) * 0.50;
     }
 
-    // Rectangular digital desk clock — small slab, grounded.
+    // Digital desk clock — slab with two buttons on top.
     {
-      vec2 kp = (puv - vec2(0.70, 0.0)) * vec2(pxAspect, 1.0);
-      float clock = sdRoundedBox(kp - vec2(0.0, 0.031), vec2(0.052, 0.031), 0.009);
-      float clockMask = 1.0 - smoothstep(0.0, 0.010, clock);
-      shadows *= 1.0 - clockMask * 0.86;
+      vec2 kp = (puvObj - vec2(0.685, 0.0)) * vec2(pxAspect, 1.0);
+      float bodyC = sdRoundedBox(kp - vec2(0.0, 0.030), vec2(0.052, 0.030), 0.009);
+      float btn1 = sdRoundedBox(kp - vec2(-0.022, 0.064), vec2(0.009, 0.004), 0.002);
+      float btn2 = sdRoundedBox(kp - vec2( 0.012, 0.064), vec2(0.012, 0.004), 0.002);
+      float sil = min(bodyC, min(btn1, btn2));
+      float silMask = 1.0 - smoothstep(0.0, 0.009, sil);
+      shadows *= 1.0 - silMask * 0.86;
+      shadows *= 1.0 - groundContact(kp, 0.065) * 0.28;
+    }
+
+    // Pen cup — shorter pens, one pencil with a pointed tip.
+    {
+      vec2 cp = (puvObj - vec2(0.86, 0.058)) * vec2(pxAspect, 1.0);
+      float cup = sdRoundedBox(cp, vec2(0.034, 0.060), 0.010);
+      float pencilBody = sdCapsule(cp, vec2(-0.012, 0.050), vec2(-0.019, 0.135), 0.0068);
+      float pencilTip  = sdLeaf(cp, vec2(-0.019, 0.135), vec2(-0.0205, 0.158), 0.0062);
+      float pen2 = sdCapsule(cp, vec2( 0.003, 0.050), vec2( 0.011, 0.150), 0.0070);
+      float pen3 = sdCapsule(cp, vec2( 0.017, 0.050), vec2( 0.027, 0.120), 0.0064);
+      float sil = min(cup, min(min(pencilBody, pencilTip), min(pen2, pen3)));
+      float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
+      shadows *= 1.0 - silMask * 0.88;
+      shadows *= 1.0 - groundContact(cp + vec2(0.0, 0.058), 0.060) * 0.28;
     }
 
     // ----- light color + composition -----
@@ -292,19 +372,27 @@ const FRAG = /* glsl */ `
     float shimmer = 0.92 + fbm(p * 3.0 + uTime * 0.05) * 0.16;
     float hot = 1.0 - length((puv - vec2(0.35, 0.80)) * vec2(1.0, 0.8));
     float heat = 0.55 + max(hot, 0.0) * 0.75;
+    // Slow breathing of the light source.
+    heat *= 0.96 + 0.045 * sin(uTime * 0.30);
 
-    float lightAmt = patchMask * blind * shadows * shimmer * heat;
-    // Clouds passing outside soften the upper window light.
-    lightAmt *= 1.0 - cloud * 0.42 * cloudBand;
-    // Room darkens as blinds close.
-    lightAmt *= mix(1.0, 0.80, blindFrac);
+    float lightRaw = patchMask * blind * shimmer * heat;
+    lightRaw *= 1.0 - cloud * 0.42 * cloudBand;
+    lightRaw *= mix(1.0, 0.80, blindFrac);
+
+    float lightAmt = lightRaw * shadows;
 
     vec3 col = base * 0.82 + sunCol * lightAmt * 0.88;
-    // Bounce-glow bleeding past the patch edge, dims with the blinds.
+    // Color-matched shadows — silhouettes absorb the amber, staying warm
+    // dark brown instead of dropping to black.
+    col += vec3(0.30, 0.125, 0.075) * lightRaw * (1.0 - shadows) * 0.34;
+    // Rim light on top curves of the desk objects.
+    col += sunCol * rimGlow * lightRaw * 0.15;
+
+    // Bounce-glow beyond the patch edge.
     float glow = exp(-max(dPatch, 0.0) * 9.0) * (1.0 - patchMask);
     col += sunCol * glow * 0.15 * mix(1.0, 0.25, blindFrac);
 
-    // ===== DUST MOTES drifting in the light =====
+    // ===== DUST MOTES in the light =====
     {
       vec2 muv = uv * vec2(70.0, 40.0) + vec2(uTime * 0.55, -uTime * 0.21);
       float cell = hash(floor(muv));
@@ -313,24 +401,26 @@ const FRAG = /* glsl */ `
       col += sunCol * mote * 0.07 * lightAmt;
     }
 
-    // ===== FILM GRAIN + VIGNETTE =====
-    float grain = (hash(uv * uRes.xy + uTime * 137.0) - 0.5) * 0.022;
+    // ===== FILM GRAIN + SOFT VIGNETTE =====
+    float grain = (hash(uv * uRes.xy + uTime * 137.0) - 0.5) * 0.034;
     col += grain;
-    float vig = length((uv - 0.5) * vec2(1.05, 1.15));
-    col *= 1.0 - smoothstep(0.5, 1.0, vig) * 0.45;
+    float vig = length((uv - 0.5) * vec2(1.02, 1.10));
+    col *= 1.0 - smoothstep(0.62, 1.25, vig) * 0.34;
 
     gl_FragColor = vec4(col, 1.0);
   }
 `;
 
 /**
- * Render the full brand shadow to an offscreen canvas → CanvasTexture.
- * The hero has no HTML headline — everything the visitor reads on first
- * paint is this shadow: accent square + "A14" + the headline lines.
+ * Brand shadow texture: a big centered "A14" plus the Wend + Fintellect
+ * marks flanking beneath. The accent square is NOT drawn here — the shader
+ * renders it so it can blink like a terminal cursor; we return its rect
+ * (texture-UV space) for the shader.
  */
 function makeLogoTexture(width = 2048, height = 1200): {
   texture: THREE.CanvasTexture;
   aspect: [number, number];
+  sqRect: [number, number, number, number];
 } {
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -341,38 +431,30 @@ function makeLogoTexture(width = 2048, height = 1200): {
   ctx.textBaseline = "alphabetic";
 
   const sans = `ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif`;
-  const serifItalic = `Georgia, "Times New Roman", serif`;
 
-  // --- "A14" big, with accent square ---
-  const a14Size = Math.floor(height * 0.34);
-  ctx.font = `900 ${a14Size}px ${sans}`;
-  const a14W = ctx.measureText("A14").width;
-  const sq = a14Size * 0.2;
-  const gap = a14Size * 0.12;
-  const groupW = sq + gap + a14W;
-  const a14X = (width - groupW) / 2;
-  const a14Baseline = height * 0.40;
-  ctx.fillRect(a14X, a14Baseline - a14Size * 0.74, sq, sq);
-  ctx.fillText("A14", a14X + sq + gap, a14Baseline);
+  // --- "A14" big, centered ---
+  const fontSize = Math.floor(height * 0.46);
+  ctx.font = `900 ${fontSize}px ${sans}`;
+  const tw = ctx.measureText("A14").width;
+  const sq = fontSize * 0.18;
+  const gap = fontSize * 0.12;
+  const groupW = sq + gap + tw;
+  const x0 = (width - groupW) / 2;
+  const baseline = height * 0.5 + fontSize * 0.36;
+  ctx.fillText("A14", x0 + sq + gap, baseline);
 
-  // --- headline lines ---
-  const lineSize = Math.floor(height * 0.095);
-  ctx.font = `700 ${lineSize}px ${sans}`;
-  const l1 = "We build the tools";
-  const l1W = ctx.measureText(l1).width;
-  ctx.fillText(l1, (width - l1W) / 2, height * 0.58);
-
-  ctx.font = `italic 400 ${lineSize}px ${serifItalic}`;
-  const l2 = "we wished existed.";
-  const l2W = ctx.measureText(l2).width;
-  ctx.fillText(l2, (width - l2W) / 2, height * 0.70);
-
-  // --- studio caption ---
-  const capSize = Math.floor(height * 0.042);
-  ctx.font = `500 ${capSize}px ${sans}`;
-  const cap = "A I - N A T I V E   P R O D U C T   S T U D I O";
-  const capW = ctx.measureText(cap).width;
-  ctx.fillText(cap, (width - capW) / 2, height * 0.82);
+  // Square rect (baseline-aligned, like the nav lockup) in texture UV.
+  // flipY texture → v = 1 - y/height.
+  const sx0 = x0;
+  const sx1 = x0 + sq;
+  const sy0 = baseline - sq;
+  const sy1 = baseline;
+  const sqRect: [number, number, number, number] = [
+    sx0 / width,
+    1 - sy1 / height,
+    sx1 / width,
+    1 - sy0 / height,
+  ];
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.minFilter = THREE.LinearFilter;
@@ -380,7 +462,30 @@ function makeLogoTexture(width = 2048, height = 1200): {
   tex.wrapS = THREE.ClampToEdgeWrapping;
   tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.needsUpdate = true;
-  return { texture: tex, aspect: [width, height] };
+
+  // --- product marks, drawn async once their PNGs load ---
+  const sideY = height * 0.84; // center line for the side logos
+  const sideH = 170;
+  const placements: Array<[string, number]> = [
+    ["/shadows/fintellect.png", 0.315],
+    ["/shadows/wend.png", 0.685],
+  ];
+  placements.forEach(([src, cx]) => {
+    const img = new Image();
+    img.onload = () => {
+      let h = sideH;
+      let w = (h * img.width) / img.height;
+      if (w > 420) {
+        w = 420;
+        h = (w * img.height) / img.width;
+      }
+      ctx.drawImage(img, cx * width - w / 2, sideY - h / 2, w, h);
+      tex.needsUpdate = true;
+    };
+    img.src = src;
+  });
+
+  return { texture: tex, aspect: [width, height], sqRect };
 }
 
 function ShaderQuad() {
@@ -388,8 +493,8 @@ function ShaderQuad() {
   const { size } = useThree();
   const scrollRef = useRef(0);
   const liftRef = useRef(0);
+  const mouseRef = useRef({ x: 0, y: 0 });
 
-  // Logo texture — built once on mount.
   const logoData = useMemo(() => makeLogoTexture(), []);
 
   const uniforms = useMemo(
@@ -398,8 +503,10 @@ function ShaderQuad() {
       uRes: { value: new THREE.Vector2(size.width, size.height) },
       uScroll: { value: 0 },
       uLift: { value: 0 },
+      uMouse: { value: new THREE.Vector2(0, 0) },
       uLogo: { value: logoData.texture },
       uLogoAspect: { value: new THREE.Vector2(logoData.aspect[0], logoData.aspect[1]) },
+      uSqRect: { value: new THREE.Vector4(...logoData.sqRect) },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -407,34 +514,34 @@ function ShaderQuad() {
 
   useEffect(() => {
     const update = () => {
-      // Blinds close over the first viewport-height of scrolling (the
-      // sticky hero's scroll range) — not the whole document.
       const vh = window.innerHeight;
       scrollRef.current = Math.min(1, Math.max(0, window.scrollY / vh));
-      // After the sticky hero releases (1vh of scroll), the window light is
-      // "painted on the wall" — it slides up and away with the page.
       liftRef.current = Math.max(0, window.scrollY - vh) / vh;
+    };
+    const onMouse = (e: MouseEvent) => {
+      mouseRef.current.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouseRef.current.y = -((e.clientY / window.innerHeight) * 2 - 1);
     };
     update();
     window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("resize", update);
+    window.addEventListener("mousemove", onMouse, { passive: true });
     return () => {
       window.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
+      window.removeEventListener("mousemove", onMouse);
     };
   }, []);
 
   useFrame((state) => {
     if (!matRef.current) return;
-    matRef.current.uniforms.uTime.value = state.clock.getElapsedTime();
-    matRef.current.uniforms.uRes.value.set(size.width, size.height);
-    // Smooth-follow scroll for less jitter.
-    const target = scrollRef.current;
-    const current = matRef.current.uniforms.uScroll.value;
-    matRef.current.uniforms.uScroll.value = current + (target - current) * 0.08;
-    const liftT = liftRef.current;
-    const liftC = matRef.current.uniforms.uLift.value;
-    matRef.current.uniforms.uLift.value = liftC + (liftT - liftC) * 0.12;
+    const u = matRef.current.uniforms;
+    u.uTime.value = state.clock.getElapsedTime();
+    u.uRes.value.set(size.width, size.height);
+    u.uScroll.value += (scrollRef.current - u.uScroll.value) * 0.08;
+    u.uLift.value += (liftRef.current - u.uLift.value) * 0.12;
+    u.uMouse.value.x += (mouseRef.current.x - u.uMouse.value.x) * 0.06;
+    u.uMouse.value.y += (mouseRef.current.y - u.uMouse.value.y) * 0.06;
   });
 
   return (
@@ -468,7 +575,6 @@ export function WindowLightShader({ className }: { className?: string }) {
   }, []);
 
   if (!ok) {
-    // Static warm gradient fallback — no WebGL (or pre-hydration).
     return (
       <div
         className={className}
