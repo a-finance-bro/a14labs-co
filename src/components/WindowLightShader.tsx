@@ -14,8 +14,8 @@ import * as THREE from "three";
  *     slow "breathing" intensity
  *   - soft two-layer clouds drifting across the upper light
  *   - shadows cast inside the light, color-matched (warm dark brown, not
- *     black): the A14 mark with a BLINKING accent square (terminal
- *     cursor) and a desk-scene lineup —
+ *     black): the A14 mark with its accent square, a swaying tree-
+ *     foliage shadow over the top-right corner, and a desk-scene lineup —
  *     mug with steam, poted plant with pointed fanning leaves, solid
  *     MacBook silhouette, digital desk clock with buttons, pen cup
  *   - three string-light strands with detailed bulbs, swaying gently
@@ -314,15 +314,13 @@ const FRAG = /* glsl */ `
       float depthBlur = mix(5.0, 1.6, smoothstep(0.25, 0.75, luv.y));
       float s = sampleLogo(luv, depthBlur);
 
-      // Accent square — drawn here (not in the texture) so it can blink
-      // like a terminal cursor. Steady ~1 Hz cadence.
-      float blink = step(fract(uTime * 0.85), 0.58);
+      // Accent square — solid, baseline-aligned with the wordmark.
       float e = 0.004;
       float inSq = smoothstep(uSqRect.x - e, uSqRect.x + e, luv.x)
                  * (1.0 - smoothstep(uSqRect.z - e, uSqRect.z + e, luv.x))
                  * smoothstep(uSqRect.y - e, uSqRect.y + e, luv.y)
                  * (1.0 - smoothstep(uSqRect.w - e, uSqRect.w + e, luv.y));
-      s = max(s, inSq * blink * 0.96);
+      s = max(s, inSq * 0.96);
 
       occ = max(occ, s * 0.90);
     }
@@ -347,6 +345,63 @@ const FRAG = /* glsl */ `
 
       // Furthest from the wall → most diffuse, least dense.
       occ = max(occ, lights * 0.74);
+    }
+
+    // ----- tree foliage: branches + leaves over the top-right corner -----
+    // The tree stands outside the window — the furthest caster in the
+    // scene, so its shadow carries the widest penumbra. Every leaf sways
+    // on its own tempo; the wind itself is three overlapping sines so the
+    // motion gusts instead of ticking.
+    if (puvObj.x > 0.42 && puvObj.y > 0.38) {
+      float wind = sin(uTime * 0.40) * 0.5 + sin(uTime * 0.97 + 1.3) * 0.3
+                 + sin(uTime * 0.17 + 4.1) * 0.2;
+      float fol = 0.0;
+
+      // Two thin twigs reaching in from off-frame.
+      {
+        vec2 pvA = vec2(puvObj.x * pxAspect, puvObj.y);
+        float tw1 = sdCapsule(pvA,
+          vec2(1.06 * pxAspect, 1.03),
+          vec2((0.66 + wind * 0.008) * pxAspect, 0.84 + wind * 0.004), 0.0022);
+        float tw2 = sdCapsule(pvA,
+          vec2(1.05 * pxAspect, 0.70),
+          vec2((0.78 + wind * 0.006) * pxAspect, 0.92 + wind * 0.003), 0.0019);
+        fol = max(fol, (1.0 - smoothstep(0.0, 0.014, min(tw1, tw2))) * 0.40);
+      }
+
+      // Leaf cloud — each leaf is a rotated, elongated blob with its own
+      // sway tempo, phase, size, and density.
+      const int NL = 36;
+      for (int i = 0; i < NL; i++) {
+        float fi = float(i);
+        float r1 = hash(vec2(fi * 1.7, 3.1));
+        float r2 = hash(vec2(fi * 2.3, 8.9));
+        float r3 = hash(vec2(fi * 0.9, 5.7));
+        // Scatter along one of the two branch arcs.
+        float onB = step(0.5, r3);
+        vec2 A = mix(vec2(1.05, 1.02), vec2(1.04, 0.71), onB);
+        vec2 B = mix(vec2(0.64, 0.85), vec2(0.78, 0.93), onB);
+        vec2 cpos = mix(A, B, fract(r1 * 7.0));
+        cpos += (vec2(r2, r1) - 0.5) * vec2(0.16, 0.13);
+        // Individual motion: rotation sway + small lateral drift.
+        float tempo = 0.8 + r2 * 1.6;
+        float ph = fi * 1.93;
+        float swayA = wind * (0.20 + r1 * 0.30) * sin(uTime * tempo + ph);
+        cpos.x += wind * 0.010 * (0.4 + r2) * sin(uTime * (0.6 + r1) + ph);
+
+        float ang = r1 * 6.2831 + swayA;
+        vec2 lp = puvObj - cpos;
+        lp.x *= pxAspect;
+        float ca = cos(ang);
+        float sa = sin(ang);
+        lp = mat2(ca, sa, -sa, ca) * lp;
+        lp.x /= 2.1;   // leaf elongation
+        float d = length(lp) - (0.0085 + r2 * 0.0085);
+        float leaf = (1.0 - smoothstep(0.0, 0.018, d)) * (0.34 + r3 * 0.28);
+        fol = max(fol, leaf);
+      }
+
+      occ = max(occ, fol);
     }
 
     // ===== DESK SCENE — irregular spacing, grounded, aspect-true =====
