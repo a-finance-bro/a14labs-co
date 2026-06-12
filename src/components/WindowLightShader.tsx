@@ -347,42 +347,29 @@ const FRAG = /* glsl */ `
       occ = max(occ, lights * 0.74);
     }
 
-    // ----- tree foliage: branches + leaves over the top-right corner -----
+    // ----- tree foliage: a leaf canopy over the top-right corner -----
     // The tree stands outside the window — the furthest caster in the
-    // scene, so its shadow carries the widest penumbra. Every leaf sways
-    // on its own tempo; the wind itself is three overlapping sines so the
-    // motion gusts instead of ticking.
-    if (puvObj.x > 0.42 && puvObj.y > 0.38) {
-      float wind = sin(uTime * 0.40) * 0.5 + sin(uTime * 0.97 + 1.3) * 0.3
-                 + sin(uTime * 0.17 + 4.1) * 0.2;
-      float fol = 0.0;
+    // scene, so its shadow carries the widest penumbra. No twig lines:
+    // the canopy reads through leaf density alone. Every leaf sways on
+    // its own tempo; the wind is three overlapping sines so the motion
+    // gusts instead of ticking.
+    float fol = 0.0;
+    float wind = sin(uTime * 0.40) * 0.5 + sin(uTime * 0.97 + 1.3) * 0.3
+               + sin(uTime * 0.17 + 4.1) * 0.2;
 
-      // Two thin twigs reaching in from off-frame.
-      {
-        vec2 pvA = vec2(puvObj.x * pxAspect, puvObj.y);
-        float tw1 = sdCapsule(pvA,
-          vec2(1.06 * pxAspect, 1.03),
-          vec2((0.66 + wind * 0.008) * pxAspect, 0.84 + wind * 0.004), 0.0022);
-        float tw2 = sdCapsule(pvA,
-          vec2(1.05 * pxAspect, 0.70),
-          vec2((0.78 + wind * 0.006) * pxAspect, 0.92 + wind * 0.003), 0.0019);
-        fol = max(fol, (1.0 - smoothstep(0.0, 0.014, min(tw1, tw2))) * 0.40);
-      }
-
-      // Leaf cloud — each leaf is a rotated, elongated blob with its own
-      // sway tempo, phase, size, and density.
-      const int NL = 36;
+    if (puvObj.x > 0.42 && puvObj.y > 0.30) {
+      const int NL = 64;
       for (int i = 0; i < NL; i++) {
         float fi = float(i);
         float r1 = hash(vec2(fi * 1.7, 3.1));
         float r2 = hash(vec2(fi * 2.3, 8.9));
         float r3 = hash(vec2(fi * 0.9, 5.7));
-        // Scatter along one of the two branch arcs.
+        // Scatter along two unseen branch arcs, reaching a bit lower.
         float onB = step(0.5, r3);
-        vec2 A = mix(vec2(1.05, 1.02), vec2(1.04, 0.71), onB);
-        vec2 B = mix(vec2(0.64, 0.85), vec2(0.78, 0.93), onB);
+        vec2 A = mix(vec2(1.06, 1.03), vec2(1.05, 0.66), onB);
+        vec2 B = mix(vec2(0.60, 0.80), vec2(0.74, 0.92), onB);
         vec2 cpos = mix(A, B, fract(r1 * 7.0));
-        cpos += (vec2(r2, r1) - 0.5) * vec2(0.16, 0.13);
+        cpos += (vec2(r2, r1) - 0.5) * vec2(0.18, 0.17);
         // Individual motion: rotation sway + small lateral drift.
         float tempo = 0.8 + r2 * 1.6;
         float ph = fi * 1.93;
@@ -400,9 +387,40 @@ const FRAG = /* glsl */ `
         float leaf = (1.0 - smoothstep(0.0, 0.018, d)) * (0.34 + r3 * 0.28);
         fol = max(fol, leaf);
       }
-
-      occ = max(occ, fol);
     }
+
+    // Falling leaves — a few detach from the canopy's underside, rock as
+    // they drift down-and-right on the breeze, fade out, and re-grow on
+    // a loop. The canopy itself never thins.
+    if (puvObj.x > 0.40) {
+      for (int f = 0; f < 5; f++) {
+        float ff = float(f);
+        float fr1 = hash(vec2(ff * 4.1, 2.7));
+        float fr2 = hash(vec2(ff * 6.3, 9.4));
+        float period = 14.0 + fr1 * 9.0;
+        float t01 = fract((uTime + ff * 5.3) / period);
+        // Spawn at the canopy's lower edge (lower-layer leaves).
+        vec2 spawn = vec2(0.58 + fr1 * 0.26, 0.68 + fr2 * 0.12);
+        vec2 fpos = spawn + vec2(
+          t01 * (0.28 + fr2 * 0.22) + sin(t01 * 9.0 + ff) * 0.018,
+          -t01 * (0.60 + fr1 * 0.22) + sin(t01 * 13.0 + ff * 2.0) * 0.012);
+        // Fade in (grown) then out (settles) so the loop never pops.
+        float fade = smoothstep(0.0, 0.10, t01) * (1.0 - smoothstep(0.72, 0.97, t01));
+        // Rocking pendulum tumble as it falls.
+        float angF = fr1 * 6.2831 + t01 * (3.0 + fr2 * 4.0) + sin(t01 * 11.0 + ff) * 0.8;
+        vec2 lp = puvObj - fpos;
+        lp.x *= pxAspect;
+        float ca = cos(angF);
+        float sa = sin(angF);
+        lp = mat2(ca, sa, -sa, ca) * lp;
+        lp.x /= 2.1;
+        float d = length(lp) - 0.0095;
+        float leaf = (1.0 - smoothstep(0.0, 0.020, d)) * 0.38 * fade;
+        fol = max(fol, leaf);
+      }
+    }
+
+    occ = max(occ, fol);
 
     // ===== DESK SCENE — irregular spacing, grounded, aspect-true =====
 
