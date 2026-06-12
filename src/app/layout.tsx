@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Instrument_Serif, DM_Mono } from "next/font/google";
 import "./globals.css";
 import { LenisProvider } from "@/components/LenisProvider";
-import { Cursor } from "@/components/Cursor";
 import { ScrollProgress } from "@/components/ScrollProgress";
-import { AmbientField } from "@/components/AmbientField";
+import { BeanField } from "@/components/BeanField";
 
 const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
@@ -20,9 +19,10 @@ const instrument = Instrument_Serif({
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
-  variable: "--font-jetbrains",
+const dmMono = DM_Mono({
+  variable: "--font-mono-display",
   subsets: ["latin"],
+  weight: ["300", "400", "500"],
   display: "swap",
 });
 
@@ -48,13 +48,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${bricolage.variable} ${instrument.variable} ${jetbrains.variable} h-full antialiased`}
+      className={`${bricolage.variable} ${instrument.variable} ${dmMono.variable} h-full antialiased`}
     >
       <body className="relative min-h-full bg-background text-foreground">
         <LenisProvider>
           <ScrollProgress />
-          <AmbientField />
-          <Cursor />
+          <BeanField />
           <div className="relative z-10">{children}</div>
         </LenisProvider>
       </body>

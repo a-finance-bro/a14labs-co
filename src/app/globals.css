@@ -23,7 +23,7 @@
   --color-accent: var(--accent);
   --font-display: var(--font-bricolage);
   --font-italic: var(--font-instrument);
-  --font-mono: var(--font-jetbrains);
+  --font-mono: var(--font-mono-display);
 }
 
 html,
@@ -53,13 +53,4 @@ body::before {
     radial-gradient(120% 60% at 50% 100%, rgba(0, 0, 0, 0.5) 0%, transparent 60%);
 }
 
-/* Hide the system cursor where we mount our custom one. Desktop only — the
-   .Cursor component skips touch devices so the system cursor is restored. */
-@media (hover: hover) and (pointer: fine) {
-  body {
-    cursor: none;
-  }
-  a, button {
-    cursor: none;
-  }
-}
+/* System cursor — no hijacking. */

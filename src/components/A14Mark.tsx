@@ -74,10 +74,11 @@ export function A14Mark({
         transition={animate ? { duration: 0.6, delay: 0.4, ease: [0.22, 1, 0.36, 1] } : undefined}
       />
 
-      {/* The 4 — single outline polygon: vertical bar + crossbar +
-          diagonal slope back up to the top of the vertical. */}
+      {/* The 4 — block / stencil form. Two parallel verticals at top
+          joined by a thick crossbar, with the right vertical continuing
+          to the baseline. Reads as "4" unambiguously. */}
       <motion.path
-        d="M 172 8 L 196 8 L 196 116 L 172 116 L 172 88 L 130 88 L 130 76 Z"
+        d="M 158 8 L 170 8 L 170 64 L 184 64 L 184 8 L 196 8 L 196 116 L 184 116 L 184 80 L 158 80 Z"
         fill={strokeOnly ? "none" : "currentColor"}
         stroke="currentColor"
         strokeWidth={strokeOnly ? 4 : 0}
@@ -85,7 +86,7 @@ export function A14Mark({
         initial={animate ? { pathLength: 0, opacity: 0, scale: 0.9 } : undefined}
         animate={animate ? { pathLength: 1, opacity: 1, scale: 1 } : undefined}
         transition={animate ? { duration: 0.9, delay: 0.5, ease: [0.22, 1, 0.36, 1] } : undefined}
-        style={{ transformOrigin: "163px 62px" }}
+        style={{ transformOrigin: "177px 62px" }}
       />
     </svg>
   );
@@ -107,8 +108,8 @@ export function A14Lockup({
     <span className={`inline-flex items-center gap-3 ${className ?? ""}`}>
       <A14Mark size={size} animated={animated} />
       <span
-        className="font-mono uppercase tracking-[0.36em]"
-        style={{ fontSize: Math.round(size * 0.36) }}
+        className="font-mono uppercase tracking-[0.32em] font-medium"
+        style={{ fontSize: Math.round(size * 0.5) }}
       >
         A14 Labs
       </span>

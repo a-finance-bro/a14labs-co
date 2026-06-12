@@ -1,19 +1,23 @@
 "use client";
 
 import { motion, useScroll, useTransform } from "framer-motion";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRef } from "react";
-import { A14Mark, A14Lockup } from "@/components/A14Mark";
+import { A14Lockup } from "@/components/A14Mark";
 import { RevealOnView, RevealWords } from "@/components/Reveal";
-import { Marquee } from "@/components/Marquee";
 import { MagneticLink } from "@/components/MagneticLink";
+
+const HeroMark3D = dynamic(
+  () => import("@/components/HeroMark3D").then((m) => m.HeroMark3D),
+  { ssr: false }
+);
 
 export default function Home() {
   return (
     <main className="min-h-screen">
       <Nav />
       <Hero />
-      <ManifestoStrip />
       <Products />
       <Team />
       <Notes />
@@ -30,10 +34,8 @@ function Nav() {
           href="/"
           aria-label="A14 Labs — home"
           className="inline-flex items-center text-foreground"
-          data-cursor-hover
-          data-cursor-label="home"
         >
-          <A14Lockup size={26} animated />
+          <A14Lockup size={32} animated />
         </Link>
         <ul className="hidden items-center gap-9 md:flex">
           {[
@@ -45,8 +47,7 @@ function Nav() {
             <li key={href}>
               <a
                 href={href}
-                data-cursor-hover
-                className="relative font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/70 transition-colors hover:text-foreground"
+                className="font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/70 transition-colors hover:text-foreground"
               >
                 {label}
               </a>
@@ -64,9 +65,8 @@ function Hero() {
     target: ref,
     offset: ["start start", "end start"],
   });
-  const markY = useTransform(scrollYProgress, [0, 1], ["0%", "-40%"]);
-  const markScale = useTransform(scrollYProgress, [0, 1], [1, 1.4]);
-  const markOpacity = useTransform(scrollYProgress, [0, 0.8], [0.18, 0]);
+  const markY = useTransform(scrollYProgress, [0, 1], ["0%", "-30%"]);
+  const markOpacity = useTransform(scrollYProgress, [0, 0.85], [1, 0]);
   const titleY = useTransform(scrollYProgress, [0, 1], ["0%", "-25%"]);
 
   return (
@@ -75,13 +75,13 @@ function Hero() {
       ref={ref}
       className="relative flex min-h-[100svh] w-full flex-col justify-between overflow-hidden px-6 pb-12 pt-32 md:px-10 md:pb-16 md:pt-40"
     >
-      {/* Massive ghost A14 mark behind the headline, parallaxes on scroll. */}
+      {/* 3D A14 mark — sits behind the headline, parallaxes on scroll. */}
       <motion.div
+        style={{ y: markY, opacity: markOpacity }}
+        className="pointer-events-none absolute inset-0 z-0"
         aria-hidden
-        style={{ y: markY, scale: markScale, opacity: markOpacity }}
-        className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center text-caramel"
       >
-        <A14Mark size={1100} animated />
+        <HeroMark3D className="absolute inset-0" />
       </motion.div>
 
       <motion.div
@@ -126,7 +126,6 @@ function Hero() {
         </RevealOnView>
       </motion.div>
 
-      {/* Scroll cue */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -141,28 +140,6 @@ function Hero() {
           Scroll ↓
         </motion.span>
       </motion.div>
-    </section>
-  );
-}
-
-function ManifestoStrip() {
-  // Long horizontal marquee strip between hero and products — gives the
-  // page a heartbeat and reinforces the brand cadence.
-  return (
-    <section className="relative z-10 border-y border-hairline bg-mocha/40 py-5 backdrop-blur-sm">
-      <Marquee
-        durationSec={42}
-        className="font-italic text-[clamp(22px,2.4vw,36px)] italic text-foreground/80"
-        items={[
-          "A14 Labs",
-          "An AI-native product studio",
-          "Bootstrapped",
-          "Builders, not bards",
-          "Fintellect · Wend · what comes next",
-          "Shipping is the strategy",
-        ]}
-        separator="·"
-      />
     </section>
   );
 }
@@ -192,17 +169,15 @@ function Products() {
   return (
     <section
       id="products"
-      className="relative z-10 border-b border-hairline px-6 py-24 md:px-10 md:py-32"
+      className="relative z-10 border-t border-b border-hairline px-6 py-24 md:px-10 md:py-32"
     >
       <div className="mx-auto max-w-[1400px]">
-        <RevealOnView
-          className="mb-12 flex items-end justify-between gap-6 border-b border-hairline pb-6"
-        >
+        <RevealOnView className="mb-12 flex items-end justify-between gap-6 border-b border-hairline pb-6">
           <h2 className="font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/60">
             Products
           </h2>
           <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/60">
-            2 active · more soon
+            2 brands live · more soon
           </span>
         </RevealOnView>
 
@@ -214,7 +189,7 @@ function Products() {
 
         <RevealOnView delay={0.2} className="mt-8">
           <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/60">
-            Next product → in build. Quiet until it ships.
+            Next product → in build.
           </p>
         </RevealOnView>
       </div>
@@ -247,7 +222,7 @@ function ProductCard({
       transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay }}
       style={{ transformPerspective: 1200 }}
       whileHover={{ y: -6 }}
-      className="group relative flex flex-col justify-between gap-8 bg-background p-8 md:p-12"
+      className="group relative flex flex-col justify-between gap-8 bg-background/85 p-8 backdrop-blur-sm md:p-12"
     >
       <div>
         <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-caramel">
@@ -267,14 +242,11 @@ function ProductCard({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        data-cursor-hover
-        data-cursor-label="visit →"
         className="inline-flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/85 transition-colors hover:text-caramel"
       >
         <span>↗</span>
         <span>{hrefLabel}</span>
       </MagneticLink>
-      {/* Corner ticks for the lab-notebook feel. */}
       <CornerTicks />
     </motion.article>
   );
@@ -305,7 +277,8 @@ function Team() {
       name: "Ansh Vasani",
       role: "Founder · Co-CEO · technical",
       bio:
-        "Solo dev across the stack; co-leadership on strategy, finance, ops. Previously at 1435 Capital (VC, Princeton) and currently CTO of GlobalSVF. SF Bay Area, originally NYC.",
+        "Solo dev across the stack; co-leadership on strategy, finance, ops. Previously at 1435 Capital (VC, Princeton) and currently CTO of GlobalSVF. SF Bay Area.",
+      email: "ansh@a14labs.co",
       links: [
         { href: "https://anshvasani.com", label: "anshvasani.com" },
         { href: "https://linkedin.anshvasani.com", label: "LinkedIn" },
@@ -315,7 +288,8 @@ function Team() {
       name: "Ava Yu",
       role: "Founder · Co-CEO · growth",
       bio:
-        "Growth & partnerships across the A14 portfolio; co-leads strategy, finance, and ops alongside Ansh. Drives go-to-market for Fintellect and Wend, and the partner network across APAC and the US.",
+        "Growth & partnerships across the A14 portfolio; co-leads strategy, finance, and ops alongside Ansh. Drives go-to-market for Fintellect and Wend. NYC-based.",
+      email: "ava@a14labs.co",
       links: [],
     },
   ];
@@ -343,7 +317,7 @@ function Team() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-10% 0px" }}
               transition={{ duration: 0.9, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] }}
-              className="group relative flex flex-col justify-between gap-10 bg-background p-8 md:p-12"
+              className="group relative flex flex-col justify-between gap-10 bg-background/85 p-8 backdrop-blur-sm md:p-12"
             >
               <div>
                 <span className="font-mono text-[11px] uppercase tracking-[0.32em] text-caramel">
@@ -362,33 +336,34 @@ function Team() {
                   {m.bio}
                 </p>
               </div>
-              {m.links.length > 0 && (
-                <div className="flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/70">
-                  {m.links.map((l) => (
-                    <MagneticLink
-                      key={l.href}
-                      href={l.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      data-cursor-hover
-                      data-cursor-label="visit"
-                      className="hover:text-caramel"
-                    >
-                      ↗ {l.label}
-                    </MagneticLink>
-                  ))}
-                </div>
-              )}
+              <div className="flex flex-col gap-4">
+                <MagneticLink
+                  href={`mailto:${m.email}`}
+                  className="inline-flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.32em] text-caramel transition-colors hover:text-crema"
+                >
+                  <span>✉</span>
+                  <span>{m.email}</span>
+                </MagneticLink>
+                {m.links.length > 0 && (
+                  <div className="flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] uppercase tracking-[0.28em] text-foreground/70">
+                    {m.links.map((l) => (
+                      <MagneticLink
+                        key={l.href}
+                        href={l.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-caramel"
+                      >
+                        ↗ {l.label}
+                      </MagneticLink>
+                    ))}
+                  </div>
+                )}
+              </div>
               <CornerTicks />
             </motion.article>
           ))}
         </div>
-
-        <RevealOnView delay={0.2} className="mt-10">
-          <p className="max-w-3xl font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/60">
-            Engineers, designers, operators — quiet inquiries welcome.
-          </p>
-        </RevealOnView>
       </div>
     </section>
   );
@@ -409,17 +384,14 @@ function Notes() {
         <div className="col-span-12 md:col-span-8">
           <RevealOnView delay={0.1}>
             <p className="max-w-2xl font-display text-[clamp(24px,2.6vw,38px)] font-medium leading-[1.2] tracking-[-0.015em]">
-              Press, partnerships, recruiting, investors — write to{" "}
+              Reach out at{" "}
               <MagneticLink
                 href="mailto:hello@a14labs.co"
-                data-cursor-hover
-                data-cursor-label="say hi"
                 className="text-caramel underline decoration-caramel/50 underline-offset-[6px] transition-colors hover:decoration-caramel"
               >
                 hello@a14labs.co
               </MagneticLink>
               .
-              <span className="font-italic italic text-crema/90"> Quiet replies preferred.</span>
             </p>
           </RevealOnView>
           <RevealOnView
@@ -433,8 +405,8 @@ function Notes() {
             </div>
             <div>
               <p>Status</p>
-              <p className="mt-2 text-foreground/85">Bootstrapped · 2 products live</p>
-              <p className="text-foreground/85">Hiring on referral only</p>
+              <p className="mt-2 text-foreground/85">Bootstrapped</p>
+              <p className="text-foreground/85">2 brands live</p>
             </div>
           </RevealOnView>
         </div>
@@ -446,26 +418,10 @@ function Notes() {
 function Footer() {
   return (
     <footer className="relative z-10 border-t border-hairline">
-      <div className="border-b border-hairline py-6">
-        <Marquee
-          durationSec={50}
-          className="font-mono text-[11px] uppercase tracking-[0.4em] text-foreground/70"
-          items={[
-            "A14 Labs",
-            "Est. 2025",
-            "San Francisco",
-            "New York",
-            "Bootstrapped",
-            "Builders, not bards",
-            "Hello@a14labs.co",
-          ]}
-          separator="✦"
-        />
-      </div>
       <div className="mx-auto flex max-w-[1400px] flex-col items-start justify-between gap-3 px-6 py-8 font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/55 md:flex-row md:items-center md:px-10">
         <div className="flex items-center gap-3">
-          <A14Mark size={20} />
-          <span>A14 Labs · est. 2025</span>
+          <A14Lockup size={20} />
+          <span>· est. 2025</span>
         </div>
         <span>© {new Date().getFullYear()} A14 Labs LLC — All rights reserved.</span>
       </div>
