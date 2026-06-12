@@ -390,9 +390,9 @@ const FRAG = /* glsl */ `
     }
 
     // Falling leaves — a few detach from the canopy's underside, rock as
-    // they drift down-and-right on the breeze, fade out, and re-grow on
-    // a loop. The canopy itself never thins.
-    if (puvObj.x > 0.40) {
+    // they drift down-and-LEFT on a gentle breeze, fade out, and re-grow
+    // on a loop. The canopy itself never thins.
+    if (puvObj.x > 0.05) {
       for (int f = 0; f < 5; f++) {
         float ff = float(f);
         float fr1 = hash(vec2(ff * 4.1, 2.7));
@@ -400,9 +400,9 @@ const FRAG = /* glsl */ `
         float period = 14.0 + fr1 * 9.0;
         float t01 = fract((uTime + ff * 5.3) / period);
         // Spawn at the canopy's lower edge (lower-layer leaves).
-        vec2 spawn = vec2(0.58 + fr1 * 0.26, 0.68 + fr2 * 0.12);
+        vec2 spawn = vec2(0.66 + fr1 * 0.26, 0.68 + fr2 * 0.12);
         vec2 fpos = spawn + vec2(
-          t01 * (0.28 + fr2 * 0.22) + sin(t01 * 9.0 + ff) * 0.018,
+          -t01 * (0.32 + fr2 * 0.24) + sin(t01 * 9.0 + ff) * 0.018,
           -t01 * (0.60 + fr1 * 0.22) + sin(t01 * 13.0 + ff * 2.0) * 0.012);
         // Fade in (grown) then out (settles) so the loop never pops.
         float fade = smoothstep(0.0, 0.10, t01) * (1.0 - smoothstep(0.72, 0.97, t01));

@@ -26,7 +26,7 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "A14 Labs — AI-native product studio",
+  title: "A14 Labs | AI-native product studio",
   description:
     "A14 Labs is an AI-native product studio. We build Fintellect Learning, Wend, and what comes next.",
   metadataBase: new URL("https://a14labs.co"),

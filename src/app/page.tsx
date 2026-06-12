@@ -26,7 +26,7 @@ function Nav() {
       <nav className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-5 md:px-10">
         <Link
           href="/"
-          aria-label="A14 Labs — home"
+          aria-label="A14 Labs home"
           className="inline-flex items-center text-foreground"
         >
           <A14Lockup size={32} animated />
@@ -105,10 +105,10 @@ function Mission() {
           </p>
           <p className="txt-shadow-soft col-span-12 max-w-2xl text-[15px] leading-[1.6] text-foreground/85 md:col-span-9 md:text-[16px]">
             A14 Labs is an AI-native product studio. We design, build, and
-            operate AI-native software end-to-end — primarily in finance,
+            operate AI-native software end-to-end, primarily in finance,
             education, and personal infrastructure. Frontier AI changes who
             gets to build the future, and what it means to be contrarian. We
-            just build the tools we wished existed — bootstrapped,
+            just build the tools we wished existed: bootstrapped,
             forward-looking, and results-oriented.
           </p>
         </RevealOnView>
@@ -124,7 +124,7 @@ function Products() {
       title: "Fintellect Learning",
       tagline: "AI-native adaptive learning for overlooked APAC markets.",
       body:
-        "Live and revenue-generating — 1k+ students reached across APAC and the US. AI-augmented grading and knowledge-graph + RAG curricula, bridging Western and Asia-Pacific institutions.",
+        "Live and revenue-generating, with 1k+ students reached across APAC and the US. AI-augmented grading and knowledge-graph + RAG curricula, bridging Western and Asia-Pacific institutions.",
       href: "https://www.fintellectlearning.com/en",
       hrefLabel: "fintellectlearning.com",
     },
@@ -133,7 +133,7 @@ function Products() {
       title: "Wend",
       tagline: "A digital brain for the people in your life.",
       body:
-        "A schema-evolving knowledge graph that captures every interaction — chat, voice, email, calendar, browser — and tells you who to talk to, when, and why. Waitlist open.",
+        "A schema-evolving knowledge graph that captures every interaction (chat, voice, email, calendar, browser) and tells you who to talk to, when, and why. Waitlist open.",
       href: "https://trywend.io",
       hrefLabel: "trywend.io",
     },
@@ -366,6 +366,16 @@ function Notes() {
               </MagneticLink>
               .
             </p>
+            <div className="mt-6">
+              <MagneticLink
+                href="https://www.linkedin.com/company/a14labs/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-[11px] uppercase tracking-[0.32em] text-foreground/70 transition-colors hover:text-caramel"
+              >
+                ↗ LinkedIn
+              </MagneticLink>
+            </div>
           </RevealOnView>
           <RevealOnView
             delay={0.25}
@@ -396,7 +406,7 @@ function Footer() {
           <A14Lockup size={20} />
           <span>· est. 2025</span>
         </div>
-        <span>© {new Date().getFullYear()} A14 Labs LLC — All rights reserved.</span>
+        <span>© {new Date().getFullYear()} A14 Labs LLC. All rights reserved.</span>
       </div>
     </footer>
   );
