@@ -236,31 +236,61 @@ const FRAG = /* glsl */ `
     float cloud2 = fbm(vec2(puv.x * 3.1 - uTime * 0.011, puv.y * 2.3 + 9.2));
     float cloud = smoothstep(0.30, 0.80, cloud1 * 0.65 + cloud2 * 0.45);
 
-    // ----- venetian blinds: drawn DOWN from the top on scroll -----
-    float blindFrac = smoothstep(0.02, 0.95, uScroll);
-    // Gentle sway when hanging — lateral drift + slight bob of the rail.
+    // ----- venetian blinds: real unstacking mechanics -----
+    // Raised blinds are a tight stack of slats riding the bottom rail.
+    // Scrolling lowers the rail; each slat stays in the stack until the
+    // cord pays out to its deployed slot (y = max(slot, stackPos)).
+    // Phase 2 (last ~22% of scroll) tilts the slats closed: their cast
+    // shadow widens until only thin slits of light remain.
+    float occ = 0.0;  // union of every shadow caster — one sun, one shadow
+    float blindFrac = smoothstep(0.02, 0.78, uScroll);   // lowering
+    float tiltClose = smoothstep(0.78, 1.0, uScroll);    // closing
     float swayX = sin(uTime * 0.40) * 0.004 + sin(uTime * 0.23 + 1.7) * 0.0025;
     float swayY = sin(uTime * 0.33 + 0.6) * 0.003;
-    // Blinds stop a touch above the patch floor (clearance at the bottom).
-    float coverEdge = mix(1.02, 0.035 + swayY, blindFrac);
-    // Side clearance — the blind is slightly narrower than the window light.
+    // Side clearance — the blind hangs slightly narrower than the light.
     float sideM = 0.018;
     float sideMask = smoothstep(sideM - 0.005 + swayX, sideM + 0.005 + swayX, puv.x)
                    * (1.0 - smoothstep(1.0 - sideM - 0.005 + swayX, 1.0 - sideM + 0.005 + swayX, puv.x));
-    float inBlind = smoothstep(coverEdge - 0.008, coverEdge + 0.008, puv.y) * sideMask;
 
-    float nSlats = 18.0;
-    float slatPos = fract(puv.y * nSlats);
-    float slitHalf = 0.10;
-    float distC = abs(slatPos - 0.5);
-    float slit = 1.0 - smoothstep(slitHalf - 0.04, slitHalf + 0.04, distC);
-    float blindLight = max(slit, 0.045);
-    float blind = mix(1.0, blindLight, inBlind);
+    const int NS = 16;
+    float slatH = 0.0085;          // physical slat shadow thickness
+    float railH = 0.013;
+    float railY = mix(1.07, 0.035 + swayY, blindFrac);
+    float spacingFull = (1.0 - 0.035) / float(NS);
+    // Closing widens the projected slat shadow toward the full spacing,
+    // leaving a thin slit (penumbra-soft) between neighbours.
+    float apparentH = mix(slatH, spacingFull * 0.86, tiltClose);
 
-    if (blindFrac > 0.01 && blindFrac < 0.995) {
-      float rail = (1.0 - smoothstep(0.004, 0.012, abs(puv.y - coverEdge))) * sideMask;
-      blind = mix(blind, 0.03, rail);
+    float slatCover = 0.0;
+    for (int i = 0; i < NS; i++) {
+      float fi = float(i);
+      float slot = 1.0 - (fi + 0.5) * spacingFull;                       // deployed
+      float stacked = railY + railH * 0.5 + (float(NS) - fi - 0.5) * slatH; // in stack
+      float yi = max(slot, stacked);
+      if (yi > 1.05) continue;   // still hidden above the window
+      // Minute per-slat imperfection — a fraction of a degree of tilt.
+      float imperfect = (hash(vec2(fi * 3.7, 7.3)) - 0.5) * 0.006;
+      float yy = puv.y - (yi + imperfect * (puv.x - 0.5));
+      // ~2px penumbra on each slat edge.
+      float band = 1.0 - smoothstep(apparentH * 0.5 - 0.0015, apparentH * 0.5 + 0.0042, abs(yy));
+      slatCover = max(slatCover, band * 0.94);
     }
+    // Bottom rail — slightly thicker, denser.
+    {
+      float band = 1.0 - smoothstep(railH * 0.5 - 0.002, railH * 0.5 + 0.0045, abs(puv.y - railY));
+      slatCover = max(slatCover, band * 0.97);
+    }
+    // Lift strings — three thin vertical lines from the top down to the
+    // rail, paying out with the blind.
+    if (blindFrac > 0.02) {
+      for (int s2 = 0; s2 < 3; s2++) {
+        float sx = 0.18 + 0.32 * float(s2);
+        float within = step(railY, puv.y);
+        float line = (1.0 - smoothstep(0.0008, 0.0028, abs(puv.x - sx - swayX * 0.6))) * within;
+        slatCover = max(slatCover, line * 0.28);
+      }
+    }
+    occ = max(occ, slatCover * sideMask);
 
     // ----- ghost mullions: the frame's own diffuse shadow -----
     // Extremely faint + broad, hinting the window cross without drawing it.
@@ -269,7 +299,8 @@ const FRAG = /* glsl */ `
     float mull = max(mullV, mullH) * 0.11;
 
     // ----- shadow silhouettes + rim accumulation -----
-    float shadows = 1.0;
+    // Every caster below merges into occ via max() — overlapping
+    // shadows can never double-darken under a single light source.
     float rimGlow = 0.0;
 
     // Brand shadow — "A14" centered (texture) + blinking accent square.
@@ -293,7 +324,7 @@ const FRAG = /* glsl */ `
                  * (1.0 - smoothstep(uSqRect.w - e, uSqRect.w + e, luv.y));
       s = max(s, inSq * blink * 0.96);
 
-      shadows *= 1.0 - s * 0.90;
+      occ = max(occ, s * 0.90);
     }
 
     // ----- string lights: three deliberate strands, gently swaying -----
@@ -315,7 +346,7 @@ const FRAG = /* glsl */ `
         0.07, uTime, 4.3, pxAspect, 3));
 
       // Furthest from the wall → most diffuse, least dense.
-      shadows *= 1.0 - lights * 0.74;
+      occ = max(occ, lights * 0.74);
     }
 
     // ===== DESK SCENE — irregular spacing, grounded, aspect-true =====
@@ -329,8 +360,8 @@ const FRAG = /* glsl */ `
       float handle = max(hOuter, -hInner);
       float sil = min(body, handle);
       float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
-      shadows *= 1.0 - silMask * 0.88;
-      shadows *= 1.0 - groundContact(mp + vec2(0.0, 0.038), 0.055) * 0.30;
+      occ = max(occ, silMask * 0.88);
+      occ = max(occ, groundContact(mp + vec2(0.0, 0.038), 0.055) * 0.30);
       rimGlow += (1.0 - smoothstep(0.001, 0.008, abs(sil - 0.004)))
                * smoothstep(0.01, 0.045, mp.y) * 0.55;
 
@@ -343,7 +374,7 @@ const FRAG = /* glsl */ `
         float heightFade = (1.0 - smoothstep(0.07, 0.36, sp.y));
         float plume = fbm(vec2(sp.x * 8.0, sp.y * 3.0 - uTime * 0.26));
         float steamMask = widthFade * heightFade * smoothstep(0.32, 0.72, plume);
-        shadows *= 1.0 - steamMask * 0.46;
+        occ = max(occ, steamMask * 0.46);
       }
     }
 
@@ -362,8 +393,8 @@ const FRAG = /* glsl */ `
       float leaves = min(min(min(l1, l2), l3), min(l4, l5));
       float sil = min(pot, leaves);
       float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
-      shadows *= 1.0 - silMask * 0.86;
-      shadows *= 1.0 - groundContact(pp, 0.050) * 0.30;
+      occ = max(occ, silMask * 0.86);
+      occ = max(occ, groundContact(pp, 0.050) * 0.30);
       rimGlow += (1.0 - smoothstep(0.001, 0.008, abs(sil - 0.004)))
                * smoothstep(0.07, 0.14, pp.y) * 0.45;
     }
@@ -379,7 +410,7 @@ const FRAG = /* glsl */ `
       float lid = sdRoundedBox(sp2, vec2(0.112, 0.071), 0.010);
       float sil = min(lapBase, lid);
       float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
-      shadows *= 1.0 - silMask * 0.88;
+      occ = max(occ, silMask * 0.88);
       rimGlow += (1.0 - smoothstep(0.001, 0.008, abs(sil - 0.004)))
                * smoothstep(0.07, 0.14, lp.y) * 0.50;
     }
@@ -392,8 +423,8 @@ const FRAG = /* glsl */ `
       float btn2 = sdRoundedBox(kp - vec2( 0.009, 0.049), vec2(0.009, 0.003), 0.002);
       float sil = min(bodyC, min(btn1, btn2));
       float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
-      shadows *= 1.0 - silMask * 0.86;
-      shadows *= 1.0 - groundContact(kp, 0.050) * 0.28;
+      occ = max(occ, silMask * 0.86);
+      occ = max(occ, groundContact(kp, 0.050) * 0.28);
     }
 
     // Pen cup — shorter pens, one pencil with a pointed tip.
@@ -406,9 +437,12 @@ const FRAG = /* glsl */ `
       float pen3 = sdCapsule(cp, vec2( 0.012, 0.036), vec2( 0.019, 0.084), 0.0048);
       float sil = min(cup, min(min(pencilBody, pencilTip), min(pen2, pen3)));
       float silMask = 1.0 - smoothstep(0.0, 0.005, sil);
-      shadows *= 1.0 - silMask * 0.88;
-      shadows *= 1.0 - groundContact(cp + vec2(0.0, 0.040), 0.045) * 0.28;
+      occ = max(occ, silMask * 0.88);
+      occ = max(occ, groundContact(cp + vec2(0.0, 0.040), 0.045) * 0.28);
     }
+
+    // Resolve the union: a single sun casts a single shadow layer.
+    float shadows = 1.0 - occ;
 
     // ----- light color + composition -----
     vec3 sunCol = vec3(1.00, 0.80, 0.50);
@@ -418,10 +452,10 @@ const FRAG = /* glsl */ `
     // Slow breathing of the light source.
     heat *= 0.96 + 0.045 * sin(uTime * 0.30);
 
-    float lightRaw = patchMask * blind * shimmer * heat;
+    float lightRaw = patchMask * shimmer * heat;
     lightRaw *= 1.0 - cloud * 0.42 * cloudBand;
     lightRaw *= 1.0 - mull;
-    lightRaw *= mix(1.0, 0.80, blindFrac);
+    lightRaw *= mix(1.0, 0.78, tiltClose);
 
     float lightAmt = lightRaw * shadows;
 
@@ -434,7 +468,7 @@ const FRAG = /* glsl */ `
 
     // Bounce-glow beyond the patch edge.
     float glow = exp(-max(dPatch, 0.0) * 9.0) * (1.0 - patchMask);
-    col += sunCol * glow * 0.15 * mix(1.0, 0.25, blindFrac);
+    col += sunCol * glow * 0.15 * mix(1.0, 0.25, max(blindFrac * 0.6, tiltClose));
 
     // ===== DUST MOTES in the light =====
     {
@@ -443,7 +477,8 @@ const FRAG = /* glsl */ `
       float cell = hash(floor(muv));
       vec2 fpos = fract(muv) - 0.5;
       float mote = smoothstep(0.10, 0.02, length(fpos)) * step(0.975, cell);
-      col += sunCol * mote * 0.07 * lightAmt;
+      // Dust fades as the blinds shut the light down.
+      col += sunCol * mote * 0.07 * lightAmt * (1.0 - tiltClose * 0.7);
     }
 
     // ===== FILM GRAIN + SOFT VIGNETTE =====
