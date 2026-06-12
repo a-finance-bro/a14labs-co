@@ -3,100 +3,65 @@
 import { motion, useReducedMotion } from "framer-motion";
 
 /**
- * The A14 mark.
+ * A14 mark — a typographic lockup, not an icon. A small caramel accent
+ * square sits to the left of a heavy "A14" wordmark in Bricolage Grotesque,
+ * with the option to render "LABS" in mono caps next to it (Lockup).
  *
- * Custom letterform. A tall, sharp `A` (no center bar) flanked by a chunky
- * `14`. The A's right diagonal extends past the baseline and tucks under the
- * 14 as a unifying foot — one continuous gesture.
- *
- *   /|     /|
- *  / |    / 1  4
- * /__|___/___|__
- *
- * The path is drawn as a single SVG <path> so it strokes/fills cleanly and
- * supports the "build-in" animation on first paint.
+ * Type does the work. No custom letterforms.
  */
 export function A14Mark({
-  size = 64,
+  size = 32,
   animated = false,
-  strokeOnly = false,
   className,
+  accentColor = "var(--color-caramel, #c4924d)",
 }: {
   size?: number;
   animated?: boolean;
-  strokeOnly?: boolean;
   className?: string;
+  accentColor?: string;
 }) {
   const reduce = useReducedMotion();
   const animate = animated && !reduce;
+  const dot = size * 0.22;
 
   return (
-    <svg
-      width={size}
-      height={size * 0.62}
-      viewBox="0 0 200 124"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-label="A14 Labs"
+    <motion.span
+      className={`inline-flex items-baseline gap-2 ${className ?? ""}`}
+      aria-label="A14"
+      initial={animate ? { opacity: 0, y: -4 } : undefined}
+      animate={animate ? { opacity: 1, y: 0 } : undefined}
+      transition={animate ? { duration: 0.7, ease: [0.22, 1, 0.36, 1] } : undefined}
     >
-      {/* The A — sharp peak triangle, no inner bar. */}
-      <motion.path
-        d="M 4 116 L 56 8 L 108 116 L 90 116 L 56 44 L 22 116 Z"
-        fill={strokeOnly ? "none" : "currentColor"}
-        stroke="currentColor"
-        strokeWidth={strokeOnly ? 4 : 0}
-        strokeLinejoin="miter"
-        initial={animate ? { pathLength: 0, opacity: 0 } : undefined}
-        animate={animate ? { pathLength: 1, opacity: 1 } : undefined}
-        transition={animate ? { duration: 1.1, ease: [0.22, 1, 0.36, 1] } : undefined}
+      <motion.span
+        aria-hidden
+        className="inline-block shrink-0 translate-y-[-0.05em]"
+        style={{
+          width: dot,
+          height: dot,
+          background: accentColor,
+        }}
+        initial={animate ? { scale: 0, rotate: -10 } : undefined}
+        animate={animate ? { scale: 1, rotate: 0 } : undefined}
+        transition={animate ? { duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] } : undefined}
       />
-
-      {/* Unifying foot under the 14 — a hairline that visually continues
-          the A's right diagonal across the baseline. */}
-      <motion.line
-        x1="112" y1="116" x2="196" y2="116"
-        stroke="currentColor"
-        strokeWidth={strokeOnly ? 4 : 6}
-        initial={animate ? { pathLength: 0 } : undefined}
-        animate={animate ? { pathLength: 1 } : undefined}
-        transition={animate ? { duration: 0.7, delay: 0.6, ease: "easeOut" } : undefined}
-      />
-
-      {/* The 1 — a chunky vertical bar with a small flag at the top. */}
-      <motion.path
-        d="M 124 8 L 144 8 L 144 104 L 124 104 Z M 144 8 L 156 18 L 144 22 Z"
-        fill={strokeOnly ? "none" : "currentColor"}
-        stroke="currentColor"
-        strokeWidth={strokeOnly ? 3 : 0}
-        initial={animate ? { y: -16, opacity: 0 } : undefined}
-        animate={animate ? { y: 0, opacity: 1 } : undefined}
-        transition={animate ? { duration: 0.6, delay: 0.4, ease: [0.22, 1, 0.36, 1] } : undefined}
-      />
-
-      {/* The 4 — block / stencil form. Two parallel verticals at top
-          joined by a thick crossbar, with the right vertical continuing
-          to the baseline. Reads as "4" unambiguously. */}
-      <motion.path
-        d="M 158 8 L 170 8 L 170 64 L 184 64 L 184 8 L 196 8 L 196 116 L 184 116 L 184 80 L 158 80 Z"
-        fill={strokeOnly ? "none" : "currentColor"}
-        stroke="currentColor"
-        strokeWidth={strokeOnly ? 4 : 0}
-        strokeLinejoin="miter"
-        initial={animate ? { pathLength: 0, opacity: 0, scale: 0.9 } : undefined}
-        animate={animate ? { pathLength: 1, opacity: 1, scale: 1 } : undefined}
-        transition={animate ? { duration: 0.9, delay: 0.5, ease: [0.22, 1, 0.36, 1] } : undefined}
-        style={{ transformOrigin: "177px 62px" }}
-      />
-    </svg>
+      <span
+        className="font-display font-extrabold leading-none"
+        style={{
+          fontSize: size,
+          letterSpacing: "-0.045em",
+        }}
+      >
+        A14
+      </span>
+    </motion.span>
   );
 }
 
 /**
- * Wordmark variant — the mark + "A14 LABS" caption in tight tracking.
+ * Wordmark variant — the mark + "LABS" caption in mono caps.
  */
 export function A14Lockup({
-  size = 28,
+  size = 32,
   className,
   animated = false,
 }: {
@@ -105,13 +70,16 @@ export function A14Lockup({
   animated?: boolean;
 }) {
   return (
-    <span className={`inline-flex items-center gap-3 ${className ?? ""}`}>
+    <span className={`inline-flex items-baseline gap-3 ${className ?? ""}`}>
       <A14Mark size={size} animated={animated} />
       <span
-        className="font-mono uppercase tracking-[0.32em] font-medium"
-        style={{ fontSize: Math.round(size * 0.5) }}
+        className="font-mono uppercase font-medium leading-none"
+        style={{
+          fontSize: Math.round(size * 0.4),
+          letterSpacing: "0.32em",
+        }}
       >
-        A14 Labs
+        Labs
       </span>
     </span>
   );

@@ -1,17 +1,11 @@
 "use client";
 
 import { motion, useScroll, useTransform } from "framer-motion";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRef } from "react";
 import { A14Lockup } from "@/components/A14Mark";
 import { RevealOnView, RevealWords } from "@/components/Reveal";
 import { MagneticLink } from "@/components/MagneticLink";
-
-const HeroMark3D = dynamic(
-  () => import("@/components/HeroMark3D").then((m) => m.HeroMark3D),
-  { ssr: false }
-);
 
 export default function Home() {
   return (
@@ -65,8 +59,6 @@ function Hero() {
     target: ref,
     offset: ["start start", "end start"],
   });
-  const markY = useTransform(scrollYProgress, [0, 1], ["0%", "-30%"]);
-  const markOpacity = useTransform(scrollYProgress, [0, 0.85], [1, 0]);
   const titleY = useTransform(scrollYProgress, [0, 1], ["0%", "-25%"]);
 
   return (
@@ -75,14 +67,6 @@ function Hero() {
       ref={ref}
       className="relative flex min-h-[100svh] w-full flex-col justify-between overflow-hidden px-6 pb-12 pt-32 md:px-10 md:pb-16 md:pt-40"
     >
-      {/* 3D A14 mark — sits behind the headline, parallaxes on scroll. */}
-      <motion.div
-        style={{ y: markY, opacity: markOpacity }}
-        className="pointer-events-none absolute inset-0 z-0"
-        aria-hidden
-      >
-        <HeroMark3D className="absolute inset-0" />
-      </motion.div>
 
       <motion.div
         initial={{ opacity: 0, y: -8 }}

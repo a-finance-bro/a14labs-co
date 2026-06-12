@@ -3,7 +3,7 @@ import { Bricolage_Grotesque, Instrument_Serif, DM_Mono } from "next/font/google
 import "./globals.css";
 import { LenisProvider } from "@/components/LenisProvider";
 import { ScrollProgress } from "@/components/ScrollProgress";
-import { BeanField } from "@/components/BeanField";
+import { CoffeeShader } from "@/components/CoffeeShader";
 
 const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
@@ -53,7 +53,7 @@ export default function RootLayout({
       <body className="relative min-h-full bg-background text-foreground">
         <LenisProvider>
           <ScrollProgress />
-          <BeanField />
+          <CoffeeShader className="pointer-events-none fixed inset-0 z-0 opacity-90" />
           <div className="relative z-10">{children}</div>
         </LenisProvider>
       </body>
