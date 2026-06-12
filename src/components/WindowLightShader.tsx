@@ -15,10 +15,10 @@ import * as THREE from "three";
  *   - soft two-layer clouds drifting across the upper light
  *   - shadows cast inside the light, color-matched (warm dark brown, not
  *     black): the A14 mark with a BLINKING accent square (terminal
- *     cursor), Wend + Fintellect product marks, and a desk-scene lineup —
+ *     cursor) and a desk-scene lineup —
  *     mug with steam, poted plant with pointed fanning leaves, solid
  *     MacBook silhouette, digital desk clock with buttons, pen cup
- *   - string-light swags across the top, swaying in the breeze
+ *   - three string-light strands with detailed bulbs, swaying gently
  *   - per-object contact shadows grounding everything on the sill, and
  *     faint rim light on top curves
  *   - cursor parallax: desk items shift opposite the mouse slightly more
@@ -93,6 +93,33 @@ const FRAG = /* glsl */ `
     float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
     float r = w * (1.0 - h * 0.94);
     return length(pa - ba * h) - r;
+  }
+
+  // One strand of string lights: a catenary-ish wire from A to B with
+  // n detailed bulbs (socket cap + glass globe) hanging beneath it.
+  float lightStrand(vec2 pv, vec2 A, vec2 B, float sag, float sway, float pxA, int nB) {
+    float m = 0.0;
+    float u = (pv.x - A.x) / (B.x - A.x);
+    float dip = 4.0 * u * (1.0 - u);
+    float wireY = mix(A.y, B.y, clamp(u, 0.0, 1.0))
+                - sag * (dip + sway * sin(3.14159 * u));
+    if (u >= 0.0 && u <= 1.0) {
+      m = max(m, 1.0 - smoothstep(0.0014, 0.0034, abs(pv.y - wireY)));
+    }
+    for (int k = 1; k <= 6; k++) {
+      if (k > nB) break;
+      float ub = float(k) / (float(nB) + 1.0);
+      float bx = mix(A.x, B.x, ub);
+      float bdip = 4.0 * ub * (1.0 - ub);
+      float by = mix(A.y, B.y, ub) - sag * (bdip + sway * sin(3.14159 * ub));
+      vec2 d = vec2((pv.x - bx) * pxA, pv.y - by);
+      // socket cap, slim, hugging the wire
+      float cap = sdRoundedBox(d - vec2(0.0, -0.0055), vec2(0.0028, 0.0042), 0.0012);
+      // glass globe below the cap
+      float bulb = sdCircle(d - vec2(0.0, -0.0162), 0.0082);
+      m = max(m, 1.0 - smoothstep(0.0, 0.003, min(cap, bulb)));
+    }
+    return m;
   }
 
   // Sample brand texture with soft blur — returns shadow density 0..1.
@@ -229,56 +256,30 @@ const FRAG = /* glsl */ `
       shadows *= 1.0 - s * 0.90;
     }
 
-    // ----- string lights: two overlapping swag chains, swaying -----
+    // ----- string lights: three deliberate strands, gently swaying -----
     {
       float lights = 0.0;
+      // Strand 1 — from the left edge ~30% down, pinned at x = 0.40.
+      lights = max(lights, lightStrand(
+        puvObj, vec2(-0.02, 0.70), vec2(0.40, 0.78),
+        0.075, sin(uTime * 0.38) * 0.05, pxAspect, 5));
+      // Strand 2 — higher, overlapping strand 1, hanging to a left pin.
+      lights = max(lights, lightStrand(
+        puvObj, vec2(-0.02, 0.92), vec2(0.18, 0.74),
+        0.05, sin(uTime * 0.45 + 1.6) * 0.05, pxAspect, 3));
+      // Strand 3 — along the top, x 0.25 → 0.55.
+      lights = max(lights, lightStrand(
+        puvObj, vec2(0.25, 1.015), vec2(0.55, 1.015),
+        0.105, sin(uTime * 0.32 + 3.1) * 0.04, pxAspect, 4));
 
-      // chain A: 3 swags, hangs higher
-      {
-        float sway = sin(uTime * 0.45) * 0.006;
-        float nSwag = 3.0;
-        float xx = puvObj.x + sway;
-        float u = fract(xx * nSwag);
-        float dip = 4.0 * u * (1.0 - u);
-        float wireY = 0.965 - 0.045 * dip;
-        float wire = 1.0 - smoothstep(0.0018, 0.0042, abs(puvObj.y - wireY));
-        lights = max(lights, wire);
-        // bulbs at thirds of each swag
-        for (int k = 0; k < 3; k++) {
-          float ub = 0.25 + 0.25 * float(k);
-          float by = 0.965 - 0.045 * (4.0 * ub * (1.0 - ub)) - 0.014;
-          float dx = (u - ub) / nSwag * pxAspect;
-          float bulb = 1.0 - smoothstep(0.006, 0.011, length(vec2(dx, puvObj.y - by)));
-          lights = max(lights, bulb);
-        }
-      }
-      // chain B: 4 swags, lower + counter-phase
-      {
-        float sway = sin(uTime * 0.36 + 2.1) * 0.005;
-        float nSwag = 4.0;
-        float xx = puvObj.x + sway + 0.12;
-        float u = fract(xx * nSwag);
-        float dip = 4.0 * u * (1.0 - u);
-        float wireY = 0.925 - 0.035 * dip;
-        float wire = 1.0 - smoothstep(0.0018, 0.0042, abs(puvObj.y - wireY));
-        lights = max(lights, wire);
-        for (int k = 0; k < 2; k++) {
-          float ub = 0.33 + 0.34 * float(k);
-          float by = 0.925 - 0.035 * (4.0 * ub * (1.0 - ub)) - 0.013;
-          float dx = (u - ub) / nSwag * pxAspect;
-          float bulb = 1.0 - smoothstep(0.0055, 0.010, length(vec2(dx, puvObj.y - by)));
-          lights = max(lights, bulb);
-        }
-      }
-
-      shadows *= 1.0 - lights * 0.82;
+      shadows *= 1.0 - lights * 0.85;
     }
 
     // ===== DESK SCENE — irregular spacing, grounded, aspect-true =====
 
     // Coffee mug + steam (left).
     {
-      vec2 mp = (puvObj - vec2(0.115, 0.072)) * vec2(pxAspect, 1.0);
+      vec2 mp = (puvObj - vec2(0.215, 0.072)) * vec2(pxAspect, 1.0);
       float body = sdRoundedBox(mp, vec2(0.055, 0.078), 0.022);
       float hOuter = sdCircle(mp - vec2(0.078, 0.008), 0.038);
       float hInner = sdCircle(mp - vec2(0.078, 0.008), 0.022);
@@ -290,7 +291,7 @@ const FRAG = /* glsl */ `
       rimGlow += (1.0 - smoothstep(0.001, 0.009, abs(sil - 0.004)))
                * smoothstep(0.02, 0.07, mp.y) * 0.55;
 
-      vec2 sp = (puvObj - vec2(0.115, 0.165)) * vec2(pxAspect, 1.0);
+      vec2 sp = (puvObj - vec2(0.215, 0.165)) * vec2(pxAspect, 1.0);
       if (sp.y > -0.02 && sp.y < 0.55) {
         float swayS = sin(sp.y * 9.0 + uTime * 1.1) * 0.030
                     + sin(sp.y * 21.0 - uTime * 0.6) * 0.012;
@@ -303,9 +304,9 @@ const FRAG = /* glsl */ `
       }
     }
 
-    // Potted plant — pointed leaves fanning out (closer to the mug).
+    // Potted plant — pointed leaves fanning out, far right.
     {
-      vec2 pp = (puvObj - vec2(0.215, 0.0)) * vec2(pxAspect, 1.0);
+      vec2 pp = (puvObj - vec2(0.90, 0.0)) * vec2(pxAspect, 1.0);
       float pot = sdRoundedBox(pp - vec2(0.0, 0.042), vec2(0.038, 0.042), 0.010);
       vec2 rim = vec2(0.0, 0.085);
       float swayL = sin(uTime * 0.5) * 0.005;
@@ -329,21 +330,21 @@ const FRAG = /* glsl */ `
     // nearly upright, off-center left.
     {
       vec2 lp = (puvObj - vec2(0.46, 0.0)) * vec2(pxAspect, 1.0);
-      float lapBase = sdRoundedBox(lp - vec2(0.0, 0.013), vec2(0.130, 0.013), 0.006);
-      vec2 sp2 = lp - vec2(0.0, 0.088);
+      // Keyboard deck — a slim sliver, no separate contact shadow.
+      float lapBase = sdRoundedBox(lp - vec2(0.0, 0.0045), vec2(0.128, 0.0045), 0.003);
+      vec2 sp2 = lp - vec2(0.0, 0.072);
       sp2.x += sp2.y * 0.03;   // barely leaning
       float lid = sdRoundedBox(sp2, vec2(0.112, 0.063), 0.010);
       float sil = min(lapBase, lid);
       float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
       shadows *= 1.0 - silMask * 0.88;
-      shadows *= 1.0 - groundContact(lp, 0.155) * 0.30;
       rimGlow += (1.0 - smoothstep(0.001, 0.008, abs(sil - 0.004)))
-               * smoothstep(0.08, 0.15, lp.y) * 0.50;
+               * smoothstep(0.07, 0.14, lp.y) * 0.50;
     }
 
     // Digital desk clock — slab with two buttons on top.
     {
-      vec2 kp = (puvObj - vec2(0.685, 0.0)) * vec2(pxAspect, 1.0);
+      vec2 kp = (puvObj - vec2(0.60, 0.0)) * vec2(pxAspect, 1.0);
       float bodyC = sdRoundedBox(kp - vec2(0.0, 0.030), vec2(0.052, 0.030), 0.009);
       float btn1 = sdRoundedBox(kp - vec2(-0.022, 0.064), vec2(0.009, 0.004), 0.002);
       float btn2 = sdRoundedBox(kp - vec2( 0.012, 0.064), vec2(0.012, 0.004), 0.002);
@@ -355,7 +356,7 @@ const FRAG = /* glsl */ `
 
     // Pen cup — shorter pens, one pencil with a pointed tip.
     {
-      vec2 cp = (puvObj - vec2(0.86, 0.058)) * vec2(pxAspect, 1.0);
+      vec2 cp = (puvObj - vec2(0.745, 0.058)) * vec2(pxAspect, 1.0);
       float cup = sdRoundedBox(cp, vec2(0.034, 0.060), 0.010);
       float pencilBody = sdCapsule(cp, vec2(-0.012, 0.050), vec2(-0.019, 0.135), 0.0068);
       float pencilTip  = sdLeaf(cp, vec2(-0.019, 0.135), vec2(-0.0205, 0.158), 0.0062);
@@ -462,28 +463,6 @@ function makeLogoTexture(width = 2048, height = 1200): {
   tex.wrapS = THREE.ClampToEdgeWrapping;
   tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.needsUpdate = true;
-
-  // --- product marks, drawn async once their PNGs load ---
-  const sideY = height * 0.84; // center line for the side logos
-  const sideH = 170;
-  const placements: Array<[string, number]> = [
-    ["/shadows/fintellect.png", 0.315],
-    ["/shadows/wend.png", 0.685],
-  ];
-  placements.forEach(([src, cx]) => {
-    const img = new Image();
-    img.onload = () => {
-      let h = sideH;
-      let w = (h * img.width) / img.height;
-      if (w > 420) {
-        w = 420;
-        h = (w * img.height) / img.width;
-      }
-      ctx.drawImage(img, cx * width - w / 2, sideY - h / 2, w, h);
-      tex.needsUpdate = true;
-    };
-    img.src = src;
-  });
 
   return { texture: tex, aspect: [width, height], sqRect };
 }
