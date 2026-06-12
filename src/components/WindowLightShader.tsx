@@ -155,9 +155,11 @@ const FRAG = /* glsl */ `
     float pxAspect = patchPx.x / patchPx.y;
 
     // ----- clouds drifting past, upper window -----
-    float cloudBand = smoothstep(0.40, 0.92, puv.y);
-    float cloud = fbm(vec2(puv.x * 2.1 + uTime * 0.022, puv.y * 1.7 + 3.7));
-    cloud = smoothstep(0.34, 0.82, cloud);
+    // Two layers at different speeds/scales so they parallax like real sky.
+    float cloudBand = smoothstep(0.35, 0.88, puv.y);
+    float cloud1 = fbm(vec2(puv.x * 1.8 + uTime * 0.020, puv.y * 1.5 + 3.7));
+    float cloud2 = fbm(vec2(puv.x * 3.1 - uTime * 0.011, puv.y * 2.3 + 9.2));
+    float cloud = smoothstep(0.30, 0.80, cloud1 * 0.65 + cloud2 * 0.45);
 
     // ----- venetian blinds: drawn DOWN from the top as you scroll -----
     // uScroll 0 → no blinds at all (clean light).
@@ -228,17 +230,61 @@ const FRAG = /* glsl */ `
       }
     }
 
-    // Pen cup — aspect-true, grounded lower-right.
+    // Pen cup — aspect-true, grounded lower-right. Cup + pens are merged
+    // into ONE silhouette before applying, so their overlap doesn't double-
+    // darken (a single object can't shade the same point twice).
     {
       vec2 cp = (puv - vec2(0.875, 0.058)) * vec2(pxAspect, 1.0);
       float cup = sdRoundedBox(cp, vec2(0.036, 0.066), 0.012);
-      float cupMask = 1.0 - smoothstep(0.0, 0.012, cup);
-      shadows *= 1.0 - cupMask * 0.88;
       float pen1 = sdCapsule(cp, vec2(-0.015, 0.06), vec2(-0.026, 0.185), 0.0058);
       float pen2 = sdCapsule(cp, vec2( 0.004, 0.06), vec2( 0.016, 0.205), 0.0062);
       float pen3 = sdCapsule(cp, vec2( 0.020, 0.06), vec2( 0.033, 0.150), 0.0055);
-      float penM = 1.0 - smoothstep(0.0, 0.010, min(min(pen1, pen2), pen3));
-      shadows *= 1.0 - penM * 0.90;
+      float sil = min(cup, min(min(pen1, pen2), pen3));
+      float silMask = 1.0 - smoothstep(0.0, 0.011, sil);
+      shadows *= 1.0 - silMask * 0.88;
+    }
+
+    // Potted plant — pot + fanned leaves, single silhouette, grounded.
+    {
+      vec2 pp = (puv - vec2(0.26, 0.0)) * vec2(pxAspect, 1.0);
+      float pot = sdRoundedBox(pp - vec2(0.0, 0.046), vec2(0.041, 0.046), 0.012);
+      vec2 stemBase = vec2(0.0, 0.092);
+      float sway = sin(uTime * 0.5) * 0.004;
+      float l1 = sdCapsule(pp, stemBase, vec2(-0.062 + sway, 0.195), 0.011);
+      float l2 = sdCapsule(pp, stemBase, vec2( 0.002 + sway, 0.225), 0.012);
+      float l3 = sdCapsule(pp, stemBase, vec2( 0.058 + sway, 0.185), 0.011);
+      float l4 = sdCapsule(pp, stemBase, vec2(-0.030 + sway, 0.165), 0.009);
+      float l5 = sdCapsule(pp, stemBase, vec2( 0.032 + sway, 0.150), 0.009);
+      float tip1 = sdCircle(pp - vec2(-0.062 + sway, 0.195), 0.018);
+      float tip2 = sdCircle(pp - vec2( 0.002 + sway, 0.225), 0.020);
+      float tip3 = sdCircle(pp - vec2( 0.058 + sway, 0.185), 0.018);
+      float leaves = min(min(min(l1, l2), min(l3, l4)), l5);
+      leaves = min(leaves, min(min(tip1, tip2), tip3));
+      float sil = min(pot, leaves);
+      float silMask = 1.0 - smoothstep(0.0, 0.012, sil);
+      shadows *= 1.0 - silMask * 0.86;
+    }
+
+    // Open laptop — center of the sill. Solid base slab + screen rendered
+    // as an outline (lid bezel), leaning back a few degrees.
+    {
+      vec2 lp = (puv - vec2(0.5, 0.0)) * vec2(pxAspect, 1.0);
+      float lapBase = sdRoundedBox(lp - vec2(0.0, 0.013), vec2(0.135, 0.013), 0.006);
+      vec2 sp2 = lp - vec2(0.0, 0.092);
+      sp2.x += sp2.y * 0.10;   // slight backward lean
+      float screenSd = sdRoundedBox(sp2, vec2(0.118, 0.064), 0.009);
+      float bezel = abs(screenSd) - 0.0055;   // outline only
+      float sil = min(lapBase, bezel);
+      float silMask = 1.0 - smoothstep(0.0, 0.010, sil);
+      shadows *= 1.0 - silMask * 0.86;
+    }
+
+    // Rectangular digital desk clock — small slab, grounded.
+    {
+      vec2 kp = (puv - vec2(0.70, 0.0)) * vec2(pxAspect, 1.0);
+      float clock = sdRoundedBox(kp - vec2(0.0, 0.031), vec2(0.052, 0.031), 0.009);
+      float clockMask = 1.0 - smoothstep(0.0, 0.010, clock);
+      shadows *= 1.0 - clockMask * 0.86;
     }
 
     // ----- light color + composition -----
@@ -249,7 +295,7 @@ const FRAG = /* glsl */ `
 
     float lightAmt = patchMask * blind * shadows * shimmer * heat;
     // Clouds passing outside soften the upper window light.
-    lightAmt *= 1.0 - cloud * 0.30 * cloudBand;
+    lightAmt *= 1.0 - cloud * 0.42 * cloudBand;
     // Room darkens as blinds close.
     lightAmt *= mix(1.0, 0.80, blindFrac);
 
@@ -257,6 +303,15 @@ const FRAG = /* glsl */ `
     // Bounce-glow bleeding past the patch edge, dims with the blinds.
     float glow = exp(-max(dPatch, 0.0) * 9.0) * (1.0 - patchMask);
     col += sunCol * glow * 0.15 * mix(1.0, 0.25, blindFrac);
+
+    // ===== DUST MOTES drifting in the light =====
+    {
+      vec2 muv = uv * vec2(70.0, 40.0) + vec2(uTime * 0.55, -uTime * 0.21);
+      float cell = hash(floor(muv));
+      vec2 fpos = fract(muv) - 0.5;
+      float mote = smoothstep(0.10, 0.02, length(fpos)) * step(0.975, cell);
+      col += sunCol * mote * 0.07 * lightAmt;
+    }
 
     // ===== FILM GRAIN + VIGNETTE =====
     float grain = (hash(uv * uRes.xy + uTime * 137.0) - 0.5) * 0.022;
