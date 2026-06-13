@@ -58,8 +58,13 @@ function Hero() {
   // only contributes the scroll cue. The section is 200svh tall with a
   // sticky inner stage: scrolling the first viewport-height draws the
   // blinds down over the window light, then the page continues.
+  //
+  // Hidden on mobile: the shadow art is composed for a wide viewport, so
+  // on a phone the tall hero is just an empty dark chunk with a lone
+  // "Scroll" cue. Below md we drop it entirely and open on the content,
+  // with the shader still behind as the backdrop.
   return (
-    <section id="studio" className="relative h-[200svh] w-full">
+    <section id="studio" className="relative hidden h-[200svh] w-full md:block">
       <div className="sticky top-0 flex h-[100svh] w-full flex-col justify-end overflow-hidden">
         <motion.div
           initial={{ opacity: 0 }}
